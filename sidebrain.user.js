@@ -354,7 +354,11 @@
     });
   }
 
-  const SYSTEM = '你是网页侧边栏助手。回答用中文，简洁、可执行；引用页面内容时不要复述整段，直接给结论。';
+  const SYSTEM_ZH = '你是网页侧边栏助手。回答用中文，简洁、可执行；引用页面内容时不要复述整段，直接给结论。';
+  const SYSTEM_EN = "You are a sidebar assistant inside the user's browser. Answer in the language the user writes in. Be concise and actionable; when citing the page, do not restate whole paragraphs — give the conclusion and point to where it is.";
+  const getSystem = () => ((typeof LANG !== 'undefined' && LANG === 'en') ? SYSTEM_EN : SYSTEM_ZH);
+  const ROLE_A = () => ((typeof LANG !== 'undefined' && LANG === 'en') ? 'Assistant: ' : '助手: ');
+  const ROLE_U = () => ((typeof LANG !== 'undefined' && LANG === 'en') ? 'Me: ' : '我: ');
 
   // ---------- 流式调用 + 自动降级 ----------
   function buildMessages(userText) {
@@ -403,7 +407,7 @@
         : 'https://openrouter.ai/api/v1/chat/completions';
       headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` };
       if (p === 'openrouter') Object.assign(headers, { 'HTTP-Referer': location.origin, 'X-Title': 'Safari AI Sidebar' });
-      body = { model: m, stream: true, messages: [{ role: 'system', content: SYSTEM }, ...messages] };
+      body = { model: m, stream: true, messages: [{ role: 'system', content: getSystem() }, ...messages] };
       if (p === 'deepseek' && !/pro/.test(m)) body.temperature = 0.3;
     } else if (p === 'gemini') {
       const gk = gemKey(target);
@@ -414,7 +418,7 @@
       // Gemini 3.x 默认会烧几百个思考 token；日常任务直接关掉，又省又快
       if (!think) gen.thinkingConfig = { thinkingBudget: 0 };
       body = {
-        systemInstruction: { parts: [{ text: SYSTEM }] },
+        systemInstruction: { parts: [{ text: getSystem() }] },
         contents: messages.map(x => ({ role: x.role === 'assistant' ? 'model' : 'user', parts: [{ text: x.content }] })),
         generationConfig: gen,
       };
@@ -423,7 +427,7 @@
       if (!gk) throw new HTTPError('没填 Groq key', 401);
       url = 'https://api.groq.com/openai/v1/chat/completions';
       headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${gk}` };
-      body = { model: m, stream: true, temperature: 0.3, reasoning_effort: 'low', messages: [{ role: 'system', content: SYSTEM }, ...messages] };
+      body = { model: m, stream: true, temperature: 0.3, reasoning_effort: 'low', messages: [{ role: 'system', content: getSystem() }, ...messages] };
     } else if (p === 'cf') {
       // Cloudflare 的 CORS 预检直接 405，浏览器直连必然失败 → 交给本地网关转发
       throw new HTTPError('这个模型走非流式', 400);
@@ -436,7 +440,7 @@
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true',
       };
-      body = { model: m, max_tokens: 4096, stream: true, system: SYSTEM, messages };
+      body = { model: m, max_tokens: 4096, stream: true, system: getSystem(), messages };
     } else {
       throw new HTTPError('这个模型走非流式', 400);
     }
@@ -484,7 +488,7 @@
 
     // ChatGPT 订阅通道：调本地网关的 codex exec，走订阅额度，不花 API 钱
     if (p === 'chatgpt-sub') {
-      const prompt = [SYSTEM, ...buildMessages(userText).map(x => (x.role === 'assistant' ? '助手: ' : '我: ') + x.content)].join('\n\n');
+      const prompt = [getSystem(), ...buildMessages(userText).map(x => (x.role === 'assistant' ? ROLE_A() : ROLE_U()) + x.content)].join('\n\n');
       const r = await gm({
         method: 'POST',
         url: `${CFG.gatewayUrl}/chatgpt`,
@@ -500,7 +504,7 @@
 
     // Claude 订阅通道：调本地网关，它用 Claude Code 的登录态跑，不花 API 额度
     if (p === 'claude-sub') {
-      const prompt = [SYSTEM, ...buildMessages(userText).map(x => (x.role === 'assistant' ? '助手: ' : '我: ') + x.content)].join('\n\n');
+      const prompt = [getSystem(), ...buildMessages(userText).map(x => (x.role === 'assistant' ? ROLE_A() : ROLE_U()) + x.content)].join('\n\n');
       const r = await gm({
         method: 'POST',
         url: `${CFG.gatewayUrl}/claude`,
@@ -524,7 +528,7 @@
     messages.push({ role: 'user', content: ctxBlock + userText });
 
     if (p === 'deepseek') {
-      const base = { model: m, messages: [{ role: 'system', content: SYSTEM }, ...messages] };
+      const base = { model: m, messages: [{ role: 'system', content: getSystem() }, ...messages] };
       if (!/pro/.test(m)) base.temperature = 0.3; // pro/thinking 模型不收 temperature
       return openAIish(
         base,
@@ -534,13 +538,13 @@
     }
     if (p === 'groq' || p === 'groq2') {
       return openAIish(
-        { model: m, temperature: 0.3, reasoning_effort: 'low', messages: [{ role: 'system', content: SYSTEM }, ...messages] },
+        { model: m, temperature: 0.3, reasoning_effort: 'low', messages: [{ role: 'system', content: getSystem() }, ...messages] },
         { Authorization: `Bearer ${p === 'groq' ? CFG.groqKey : CFG.groqKey2}` },
         'https://api.groq.com/openai/v1/chat/completions'
       );
     }
     if (p === 'cf') {
-      const prompt = [SYSTEM, ...messages.map(x => (x.role === 'assistant' ? '助手: ' : '我: ') + x.content)].join('\n\n');
+      const prompt = [getSystem(), ...messages.map(x => (x.role === 'assistant' ? ROLE_A() : ROLE_U()) + x.content)].join('\n\n');
       const r = await gm({
         method: 'POST',
         url: `${CFG.gatewayUrl}/cf`,
@@ -555,7 +559,7 @@
     }
     if (p === 'openrouter') {
       return openAIish(
-        { model: m, messages: [{ role: 'system', content: SYSTEM }, ...messages] },
+        { model: m, messages: [{ role: 'system', content: getSystem() }, ...messages] },
         { Authorization: `Bearer ${CFG.openrouterKey}`, 'HTTP-Referer': location.origin, 'X-Title': 'Safari AI Sidebar' },
         'https://openrouter.ai/api/v1/chat/completions'
       );
@@ -566,7 +570,7 @@
         throw new Error('没填 Gemini key。去 aistudio.google.com/apikey 拿一把（AIza 或 AQ. 开头都行）。');
       }
       const body = {
-        systemInstruction: { parts: [{ text: SYSTEM }] },
+        systemInstruction: { parts: [{ text: getSystem() }] },
         contents: messages.map(x => ({ role: x.role === 'assistant' ? 'model' : 'user', parts: [{ text: x.content }] })),
         generationConfig: think ? { temperature: 0.3 } : { temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } },
       };
@@ -591,7 +595,7 @@
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true',
         },
-        data: JSON.stringify({ model: m, max_tokens: 4096, system: SYSTEM, messages }),
+        data: JSON.stringify({ model: m, max_tokens: 4096, system: getSystem(), messages }),
       });
       let j;
       try { j = JSON.parse(r.responseText); } catch { throw new Error(`HTTP ${r.status}: ${(r.responseText || '').slice(0, 300)}`); }
@@ -600,7 +604,7 @@
     }
     if (p === 'ollama') {
       return openAIish(
-        { model: m, messages: [{ role: 'system', content: SYSTEM }, ...messages], stream: false, max_tokens: 1800 },
+        { model: m, messages: [{ role: 'system', content: getSystem() }, ...messages], stream: false, max_tokens: 1800 },
         {},
         `${(CFG.ollamaUrl || DEFAULTS.ollamaUrl).replace(/\/$/, '')}/v1/chat/completions`
       ).catch(e => { throw new Error(`本地 Ollama 没响应（检查 Ollama 是否在跑、模型名对不对）：${e.message}`); });
@@ -833,6 +837,115 @@
   <button class="fab" id="fab" title="AI 侧边栏 (⌘⇧K)">✦</button>
 </div>`;
 
+
+  // ---------- 双语：跟着浏览器语言走（zh 中文，其它英文） ----------
+  const LANG = (navigator.language || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  const EN = {
+    // 顶栏 / 基础
+    '设置': 'Settings', '发送': 'Send', '关闭': 'Close', '收起 (⌘⇧K)': 'Hide (⌘⇧K)',
+    '清空本页对话': 'Clear this tab', '联网搜索（免费，走本地网关）': 'Web search (free, via local service)',
+    '自动记住看过的网页（只存本机）': 'Remember pages you read (stored locally)',
+    '记忆：看过哪些页（可删单条 / 一键清空）': 'Memory: pages you read (delete one, or wipe all)',
+    'AI 侧边栏 (⌘⇧K)': 'AI sidebar (⌘⇧K)',
+    '问点什么…（Enter 发送 / Shift+Enter 换行）': 'Ask anything… (Enter to send, Shift+Enter for a new line)',
+    // 模型下拉
+    '自动 · 免费优先（0 元）': 'Auto · Free first ($0)',
+    '自动 · 平衡（默认）': 'Auto · Balanced (default)',
+    '自动 · 速度优先': 'Auto · Speed first',
+    '自动 · 质量优先': 'Auto · Quality first',
+    'ChatGPT 订阅（Codex CLI）': 'ChatGPT subscription (Codex CLI)',
+    'Claude 订阅（CLI，非网页）': 'Claude subscription (CLI, not the web app)',
+    'Gemini Flash（免费额度）': 'Gemini Flash (free tier)',
+    'Gemini Pro（长文）': 'Gemini Pro (long context)',
+    'DeepSeek Flash（最便宜）': 'DeepSeek Flash (cheapest)',
+    '本地 Ollama': 'Local Ollama',
+    // 设置项
+    '至少填一个 key。': 'Fill in at least one key.',
+    'key 只存在本机（GM 存储），请求直连各家，不经过任何第三方。': 'Keys stay on this Mac (userscript storage). Requests go straight to the provider — no middleman.',
+    'DeepSeek API key（默认主力，最便宜）': 'DeepSeek API key (cheapest, the default workhorse)',
+    'OpenRouter API key（Auto 自动挑模型 / 兜底）': 'OpenRouter API key (auto-picks a model / last resort)',
+    'Gemini API key（长文/超长上下文）': 'Gemini API key (long context)',
+    'Anthropic API key（想要 Claude 质量时）': 'Anthropic API key (when you want Claude quality)',
+    'Gemini 备用 key #2（免费额度按 key 算）': 'Gemini spare key #2 (free quota is per key)',
+    'Gemini 备用 key #3': 'Gemini spare key #3',
+    'Gemini 便宜模型': 'Gemini cheap model',
+    'Gemini 长文模型': 'Gemini long-context model',
+    'Claude 模型': 'Claude model',
+    '本地 Ollama 模型（免费离线，需 Ollama 在跑）': 'Local Ollama model (free, offline, needs Ollama running)',
+    'Ollama 地址': 'Ollama address',
+    'Groq API key（免费层，首字最快；console.groq.com）': 'Groq API key (free tier, fastest first token)',
+    'Groq 备用 key（第一把限流时自动顶上）': 'Groq spare key (takes over when the first is rate-limited)',
+    'Groq 模型（免费层只剩几个）': 'Groq model (only a few left on the free tier)',
+    'Cloudflare 账号 ID（免费额度，dash.cloudflare.com）': 'Cloudflare account ID (free tier)',
+    'Cloudflare API token（Workers AI 权限）': 'Cloudflare API token (Workers AI permission)',
+    'Cloudflare 模型': 'Cloudflare model',
+    'OpenRouter 免费模型清单（逗号分隔，前一个限流自动换下一个）': 'OpenRouter free models (comma separated, rotates on rate limit)',
+    '使用我的 ChatGPT 订阅额度（走本机已登录的 Codex CLI）': 'Use my ChatGPT subscription (via the Codex CLI already logged in here)',
+    '使用我的 Claude 订阅额度（走本机已登录的 Claude Code）': 'Use my Claude subscription (via the Claude Code CLI already logged in here)',
+    '免费额度用完时，允许花几分钱走 DeepSeek Flash（约 ¥0.001/次）': 'When free quota runs out, allow a fraction of a cent on DeepSeek Flash',
+    '这两项由你自己决定开或不开，默认关闭。开启后，侧边栏只是调用你已经装好、已经登录的官方命令行工具，': 'Both are your call and ship switched off. When on, the sidebar only invokes the official CLI you installed and logged into yourself. ',
+    '不保存任何账号或凭证': 'No credentials are stored or proxied.',
+    '保存': 'Save',
+    '通道自检（哪条通、哪条额度没了）': 'Channel check (what is alive, what is out of quota)',
+    '点下面按钮，逐条探一遍。': 'Press a button to probe every channel.',
+    '检查全部通道': 'Check all channels',
+    '实测订阅（各耗 1 次额度）': 'Test subscriptions (uses 1 request each)',
+    'DeepSeek 查余额、Gemini 查模型列表、Ollama 查本地模型，这三个不花钱。订阅通道必须真发一句话才知道通不通。': 'DeepSeek balance, Gemini model list and local Ollama are free to check. Subscriptions need a real message to prove they work.',
+    '反馈统计（👍/👎 怎么改了我的路由）': 'Feedback stats (how 👍/👎 changed my routing)',
+    '得分 = (👍+2)/(👍+👎+4)。同一成本档内，得分高的排前面；差距小于 0.12 不动，避免一票就抖。': 'Score = (👍+2)/(👍+👎+4). Within a cost tier, higher scores go first; gaps under 0.12 are ignored so one vote does not flip it.',
+    '许可证（购买后邮件里那串）': 'License key (the one in your email)',
+    '激活': 'Activate', '试用状态：读取中…': 'Trial status: reading…',
+    '关于 / 免责说明（v': 'About / terms (v',
+    '本工具只是一个浏览器侧栏壳：': 'This is a sidebar shell: ',
+    '不保存账号凭证': 'no credentials are stored',
+    '，请求由你的浏览器直连各家模型。': ' and requests go from your browser straight to the provider.',
+    '订阅通道': 'Subscription channels', '数据': 'Data', '无担保': 'No warranty',
+    '——记忆与索引存在本机；提问内容按你原有账号的条款直连模型商，不经过任何中间服务器。': ' — memory and its index live on this Mac; questions go straight to the provider under your own account terms, through no intermediate server.',
+    '——本工具按现状提供，不对输出内容的准确性作任何承诺，重要决策请自行核对。': ' — provided as is, with no promise about accuracy. Check anything that matters.',
+    // 记忆面板
+    '记忆 · 网页': 'Memory · pages', '· 对话': '· chats', '全部': 'All', '网页': 'Pages', '对话': 'Chats',
+    '加载更多': 'Load more', '恢复上次快照': 'Restore snapshot', '一键清空': 'Wipe all',
+    '只看对话': 'Chats only',
+    '搜一条记忆：随便打几个词，比如「降噪耳机测评」': 'Search memory in plain words, e.g. "noise cancelling headphones"',
+    // 消息区
+    '（无标题）': '(untitled)', '(空回复)': '(empty reply)', '复制全文': 'Copy answer',
+    '删除': 'Delete', '删除这条': 'Delete this', '已激活': 'Activated',
+    '读取中…': 'Loading…',
+  };
+  // 英文环境下把静态界面翻一遍（动态文本在调用处过 tr()）
+  function tr(t) {
+    if (LANG !== 'en' || !t) return t;
+    const s = String(t).trim();
+    if (EN[s]) return EN[s];
+    let out = t;
+    for (const k of Object.keys(EN)) {
+      if (k.length >= 3 && out.includes(k)) out = out.split(k).join(EN[k]);
+    }
+    return out;
+  }
+  function translateTree(node) {
+    if (LANG !== 'en') return;
+    const walk = el => {
+      for (const n of el.childNodes) {
+        if (n.nodeType === 3) {
+          const v = n.nodeValue;
+          if (v && /[\u4e00-\u9fff]/.test(v)) {
+            const t = tr(v);
+            if (t !== v) n.nodeValue = t;
+          }
+        } else if (n.nodeType === 1) {
+          for (const a of ['placeholder', 'title']) {
+            const v = n.getAttribute && n.getAttribute(a);
+            if (v && /[\u4e00-\u9fff]/.test(v)) n.setAttribute(a, tr(v));
+          }
+          walk(n);
+        }
+      }
+    };
+    walk(node);
+  }
+
+  translateTree(root);
   const $ = id => root.getElementById(id);
   const panel = $('panel'), msgs = $('msgs'), input = $('input'), sendBtn = $('send'), fab = $('fab');
 
@@ -853,7 +966,7 @@
     if (tag) {
       const t = document.createElement('div');
       t.className = 'tag';
-      t.textContent = tag;
+      t.textContent = tr(tag);
       d.appendChild(t);
     }
     msgs.appendChild(d);
@@ -1088,15 +1201,15 @@
       f.appendChild(b2);
       return b2;
     };
-    const copyB = mk('⧉', 'copy', '复制');
+    const copyB = mk('⧉', 'copy', tr('复制'));
     copyB.onclick = () => copyText(meta.text, copyB);
-    const ttsB = mk('🔊', 'tts', '朗读');
+    const ttsB = mk('🔊', 'tts', tr('朗读'));
     ttsB.onclick = () => speak(meta.text, ttsB);
-    const upB = mk('👍', 'up', '有用');
+    const upB = mk('👍', 'up', tr('有用'));
     upB.onclick = () => vote(el, meta, 1, upB);
-    const downB = mk('👎', 'down', '没用');
+    const downB = mk('👎', 'down', tr('没用'));
     downB.onclick = () => vote(el, meta, -1, downB);
-    const moreB = mk('⋯', 'more', '更多');
+    const moreB = mk('⋯', 'more', tr('更多'));
     moreB.onclick = () => menuFor(el, meta);
 
     const sp = document.createElement('span'); sp.className = 'sp'; f.appendChild(sp);
@@ -1106,7 +1219,7 @@
 
     const detBtn = document.createElement('button');
     detBtn.dataset.act = 'det';
-    detBtn.textContent = `耗时 ${(meta.ms / 1000).toFixed(1)}s ›`;
+    detBtn.textContent = LANG === 'en' ? `${(meta.ms / 1000).toFixed(1)}s ›` : `耗时 ${(meta.ms / 1000).toFixed(1)}s ›`;
     f.appendChild(detBtn);
     el.appendChild(f);
 
@@ -1114,18 +1227,24 @@
     det.className = 'det';
     const chars = meta.text.length;
     const approxTok = Math.round(chars / 1.6);
+    const L2 = LANG === 'en' ? {
+      ch: 'Channel', kind: 'Routed', total: 'Total', out: 'Output', ctx: 'Context',
+      cost: 'Est. cost', chain: 'Fallback chain', why: 'Why this one', page: 'page', inj: 'injected',
+      approx: 'est. official rates, see your bill', chars: 'chars', toks: 'tokens',
+    } : { ch: '通道', kind: '判定', total: '总耗时', out: '输出', ctx: '上下文', cost: '估算花费',
+      chain: '降级链', why: '选中理由', page: '页面', inj: '注入', approx: '（按官方单价估，实际以账单为准）', chars: '字', toks: 'tokens' };
     const lines = [
-      `通道　${meta.channel}${meta.model ? ' · ' + meta.model : ''}`,
-      `判定　${meta.kind}${meta.level ? ' · L' + meta.level : ''}${meta.routeSrc ? ' · ' + meta.routeSrc : ''}${meta.routeMs != null ? ' · ' + meta.routeMs + 'ms' : ''}`,
-      `总耗时　${(meta.ms / 1000).toFixed(1)}s`,
-      `输出　${chars} 字（约 ${approxTok} tokens）`,
-      `上下文　页面 ${Math.round((lastContext || '').length / 100) / 10}k 字` +
-        (meta.sources && meta.sources.length ? ` · 注入 ${meta.sources.length} 项` : '') +
+      `${L2.ch}　${meta.channel}${meta.model ? ' · ' + meta.model : ''}`,
+      `${L2.kind}　${meta.kind}${meta.level ? ' · L' + meta.level : ''}${meta.routeSrc ? ' · ' + meta.routeSrc : ''}${meta.routeMs != null ? ' · ' + meta.routeMs + 'ms' : ''}`,
+      `${L2.total}　${(meta.ms / 1000).toFixed(1)}s`,
+      `${L2.out}　${chars} ${L2.chars} (~${approxTok} tokens)`,
+      `${L2.ctx}　${L2.page} ${Math.round((lastContext || '').length / 100) / 10}k ${L2.chars}` +
+        (meta.sources && meta.sources.length ? ` · ${L2.inj} ${meta.sources.length}` : '') +
         (meta.searchNote ? ` · ${meta.searchNote}` : ''),
-      `估算花费　${money(meta.cost)}${meta.cost > 0 ? '（按官方单价估，实际以账单为准）' : meta.why || ''}`,
+      `${L2.cost}　${money(meta.cost)}${meta.cost > 0 ? ' ' + L2.approx : meta.why || ''}`,
     ];
-    if (meta.chain && meta.chain.length > 1) lines.push(`降级链　${meta.chain.join(' → ')}`);
-    if (meta.why) lines.push(`选中理由　${meta.why}`);
+    if (meta.chain && meta.chain.length > 1) lines.push(`${L2.chain}　${meta.chain.join(' → ')}`);
+    if (meta.why) lines.push(`${L2.why}　${meta.why}`);
     det.textContent = lines.join('\n');
     el.appendChild(det);
     detBtn.onclick = () => det.classList.toggle('on');
@@ -1135,7 +1254,7 @@
       box.className = 'src';
       const head = document.createElement('span');
       head.className = 'fold';
-      head.textContent = `来源 ${meta.sources.length} 项 ›`;
+      head.textContent = LANG === 'en' ? `Sources (${meta.sources.length}) ›` : `来源 ${meta.sources.length} 项 ›`;
       box.appendChild(head);
       const list = document.createElement('div');
       list.style.display = 'none';
@@ -1200,6 +1319,17 @@
       data: JSON.stringify({ url: location.href, title: document.title || '', text: txt.slice(0, 2500) }),
       timeout: 12000,
     });
+  }
+  // 第一次用（一个 key 都没填）就把设置打开，并告诉他要做什么
+  const hasAnyKey = () => !!(CFG.deepseekKey || CFG.geminiKey || CFG.groqKey || CFG.openrouterKey || CFG.anthropicKey);
+  const FIRST_RUN = !hasAnyKey();
+  if (FIRST_RUN) {
+    setTimeout(() => {
+      $('settings').classList.add('on');
+      bubble('a', LANG === 'zh'
+        ? '第一次用，三步就能跑起来：\n\n1. 去 aistudio.google.com/apikey 拿一把免费的 Gemini key（不用绑卡）\n2. 粘到下面「Gemini API key」那一行\n3. 点保存，然后随便问一句\n\n想用别的模型也行，填对应的 key 就好；Pro 会自动帮你选最省的那条。'
+        : 'First run — three steps:\n\n1. Get a free Gemini key at aistudio.google.com/apikey (no card needed)\n2. Paste it into the "Gemini API key" field below\n3. Save, then ask anything\n\nAny other provider works too — paste its key and Pro will route to whatever is cheapest.');
+    }, 900);
   }
   setTimeout(refreshTrial, 600);
   setTimeout(autoCapture, 4000);

@@ -1,6 +1,12 @@
 # Sidebrain — AI sidebar for Safari, memory stays on your Mac
 
-A userscript sidebar for Safari that talks to **the AI subscriptions and API keys you already have**, and remembers what you read **on your own disk** — no account, no server, no second invoice.
+![Sidebrain's panel docked beside a page in Safari](docs/img/sidebar-chat.png)
+
+**A sidebar for Safari that spends the AI quota you already have.**
+
+- **Uses what you already pay for.** Free tiers first, then a ChatGPT/Claude plan you're already logged into, then your own API key — no second invoice.
+- **Memory stays on your disk.** Pages you read and questions you ask live in one file on your Mac; search them by meaning, delete one, or wipe the lot.
+- **Early beta, free to test.** The thing we want back is a [bug report](https://github.com/buzzmartglobal-art/sidebrain/issues/new/choose): system version, Safari version, the channel shown in the panel footer, and what you expected.
 
 > 中文说明在下面 [中文](#中文)
 
@@ -8,11 +14,12 @@ A userscript sidebar for Safari that talks to **the AI subscriptions and API key
 
 ## Why another sidebar
 
-Most AI sidebars charge $10–20/month to resell you a model you already pay for, and keep your history on their servers. Sidebrain is the opposite:
+Most AI sidebars charge a monthly subscription to resell you a model you already pay for, and keep your history on their
+servers. Sidebrain is the opposite:
 
-- **You bring the model.** ChatGPT / Claude subscriptions (via the official CLIs already logged in on your Mac), or any API key: Gemini, DeepSeek, Groq, OpenRouter, Cloudflare, local Ollama.
+- **You bring the model.** ChatGPT / Claude plans (via the official CLIs already logged in on your Mac), or any API key: Gemini, DeepSeek, Groq, OpenRouter, Cloudflare, local Ollama.
 - **No middleman.** Requests go straight from Safari to the provider. Nothing passes through us.
-- **No monthly fee.** Free edition is free forever. Pro is a one-time purchase.
+- **No monthly fee.** The free edition is free; the Pro beta is free to test while we finish it.
 
 ## Free edition (this repo)
 
@@ -24,7 +31,7 @@ Most AI sidebars charge $10–20/month to resell you a model you already pay for
 | History | ✅ 8 turns in the current tab |
 | Page context | ✅ Reads the current article as context |
 | Copy / read aloud / 👍👎 | ✅ |
-| Routing, memory, self-check | ❌ Pro only (see below) |
+| Routing, memory, self-check | ❌ Pro beta only (see below) — free to test |
 
 ## Install (4 steps, ~3 minutes)
 
@@ -51,9 +58,10 @@ enough for normal daily use.
 | DeepSeek | [platform.deepseek.com](https://platform.deepseek.com) | 💰 very cheap, pay as you go |
 | Ollama | local, `ollama serve` | ✅ free, offline |
 
-## What Pro adds
+## What Pro adds (beta, free to test)
 
-Pro is the same sidebar plus a small local service (`~/ai-gateway`) that runs on your Mac:
+Pro is the same sidebar plus a small local service (`~/ai-gateway`) that runs on your Mac. It is in beta and free to test
+right now — nothing is on sale, and a paid tier may come later.
 
 - **Three-tier routing** — free tiers first, then your subscription quota, then pay-per-token APIs. Falls through automatically when a provider rate-limits you.
 - **Multi-key rotation** — several free keys per provider, 429 on one switches to the next instead of failing.
@@ -62,7 +70,8 @@ Pro is the same sidebar plus a small local service (`~/ai-gateway`) that runs on
 - **Subscription channels** — uses the official `codex` / `claude` CLI already logged in on your machine. No credentials are stored by us.
 - **Free web search** — DuckDuckGo / Bing via the local service, no search API bill.
 
-→ [Get Pro](https://gumroad.com/) (link filled in at launch)
+Known limits of the beta (no native right-hand dock, the local service must be running, subscription channels off by
+default, macOS only) are written out at [docs/beta.html](./docs/beta.html).
 
 ## Privacy, plainly
 
@@ -73,13 +82,38 @@ Pro is the same sidebar plus a small local service (`~/ai-gateway`) that runs on
 ## Status
 
 Early beta. Built and tested on macOS 26.5 / Safari 26.5. Bugs are expected; the issue
-tracker is the fastest way to get them fixed.
+tracker is the fastest way to get them fixed. Before filing, skim
+[docs/beta.html](./docs/beta.html) — it lists what is already known to be broken.
 
 If you use a **subscription channel** you are responsible for how that use lines up with
 the provider's terms. Sidebrain only invokes CLIs you installed and logged in yourself; it
 does not proxy, resell, or pay for anything on your behalf.
 
 MIT licensed.
+
+---
+
+<!-- For the maintainer: paste these into GitHub → Settings → Topics. 20 max, all lowercase, hyphens not spaces. -->
+
+## Suggested GitHub topics
+
+```
+safari-extension
+safari-userscript
+ai-sidebar
+ai-assistant
+macos
+userscript
+llm
+byok
+local-first
+privacy
+chatgpt
+claude
+gemini
+ollama
+openrouter
+```
 
 ---
 

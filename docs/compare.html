@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sider vs Monica vs Sidebrain: which AI sidebar actually saves you money</title>
+<meta name="description" content="Sider, Monica, AlliHat, ChatGPTBox and Sidebrain compared for Safari: payment model, where history lives, own keys — and where Sidebrain loses.">
+<meta property="og:title" content="Sider vs Monica vs Sidebrain: which AI sidebar actually saves you money">
+<meta property="og:description" content="Compare payment model, memory location, own-key support, subscription reuse, source availability and browser coverage — including the parts where Sidebrain loses.">
+<meta property="og:image" content="img/sidebar-chat.png">
+<style>
+  :root {
+    --ink: #12151a;
+    --ink-2: #3c4553;
+    --muted: #6b7686;
+    --line: #e3e7ee;
+    --bg: #fbfbfd;
+    --card: #ffffff;
+    --accent: #2f6fed;
+    --accent-soft: #eaf1ff;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px; }
+
+  header { padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .nav { display: flex; align-items: center; gap: 18px; }
+  .logo { font-weight: 650; letter-spacing: -.01em; font-size: 17px; }
+  .logo span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .nav .sp { flex: 1; }
+  .nav a { font-size: 14px; color: var(--ink-2); }
+
+  .hero { padding: 56px 0 10px; }
+  .kicker { font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  h1 { font-size: 42px; line-height: 1.16; letter-spacing: -.025em; margin: 0 0 20px; max-width: 880px; }
+  .sub { font-size: 18.5px; color: var(--ink-2); margin: 0 0 24px; max-width: 760px; }
+  .sub b { color: var(--ink); font-weight: 620; }
+  .answer { border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 10px 10px 0; padding: 18px 22px; max-width: 820px; }
+  .answer p { margin: 0; font-size: 16px; color: var(--ink-2); }
+  .answer b { color: var(--ink); }
+
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .btn { display: inline-block; padding: 12px 20px; border-radius: 10px; font-weight: 580; font-size: 15px; border: 1px solid transparent; }
+  .btn.primary { background: var(--ink); color: #fff; }
+  .btn.primary:hover { background: #000; text-decoration: none; }
+  .btn.ghost { border-color: var(--line); background: #fff; color: var(--ink); }
+  .btn.ghost:hover { border-color: #c9d1de; text-decoration: none; }
+  .fine { font-size: 13px; color: var(--muted); margin-top: 14px; }
+
+  section { padding: 54px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 28px; letter-spacing: -.02em; margin: 0 0 10px; max-width: 760px; }
+  h3 { font-size: 16.5px; letter-spacing: -.01em; margin: 0 0 8px; }
+  .lead { color: var(--ink-2); font-size: 17px; margin: 0 0 30px; max-width: 660px; }
+  article p { margin: 0 0 16px; color: var(--ink-2); max-width: 720px; }
+  article p:last-child { margin-bottom: 0; }
+
+  .compare { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 900px; }
+  th, td { text-align: left; padding: 13px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--ink-2); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; background: #fdfdff; }
+  tbody tr:last-child td { border-bottom: 0; }
+  th.us, td.us { background: #f7faff; }
+  th.us { color: var(--accent); }
+  td:first-child { font-weight: 560; color: var(--ink); white-space: nowrap; }
+  td small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 3px; font-weight: 400; white-space: normal; }
+  .y { color: #1a7f4b; font-weight: 600; }
+  .n { color: #a4adba; }
+  .q { color: #8a6d1f; font-weight: 600; }
+  .note { font-size: 13px; color: var(--muted); margin: 14px 0 0; max-width: 780px; }
+
+  .worse { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+  .worse li { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
+  .worse strong { display: block; font-size: 15.5px; margin-bottom: 4px; }
+  .worse span { color: var(--ink-2); font-size: 14.5px; }
+
+  .endcta { padding: 54px 0 64px; border-top: 1px solid var(--line); }
+  .endcta p { color: var(--ink-2); margin: 0 0 22px; max-width: 640px; }
+
+  footer { padding: 40px 0 60px; color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--line); }
+  footer a { color: var(--ink-2); }
+
+  @media (max-width: 860px) {
+    .nav { flex-wrap: wrap; gap: 12px; }
+    h1 { font-size: 32px; }
+    .hero { padding-top: 38px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="logo">Sidebrain <span>for Safari</span></div>
+    <div class="sp"></div>
+    <a href="index.html">Overview</a>
+    <a href="safari-ai-sidebar.html">Safari sidebars</a>
+    <a href="beta.html">Beta notes</a>
+    <a href="https://github.com/buzzmartglobal-art/sidebrain">GitHub</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="kicker">Comparison · beta build · updated Oct 2026</div>
+    <h1>Sider vs Monica vs Sidebrain: which AI sidebar actually saves you money</h1>
+    <p class="sub">
+      They all do the same visible trick: a panel next to the page. They differ on one thing that decides the bill —
+      <b>who buys the tokens</b> — and on a second thing you only notice a year later: <b>where the history lives</b>.
+    </p>
+    <div class="answer">
+      <p>
+        <b>Short answer:</b> if you already pay for ChatGPT, Claude or a Gemini key, Sidebrain can spend that quota instead of
+        asking you to buy a second copy of it. If you want something you install and forget, it is also the weakest of these
+        five today — it is beta, macOS-only, needs an extension installed, and the Pro features need a small local service
+        running. It is free while we test it, and what we want back is bug reports, not money.
+      </p>
+    </div>
+  </div>
+</div>
+
+<section id="table">
+  <div class="wrap">
+    <h2>The table, including the columns vendors leave out</h2>
+    <p class="lead">Read it row by row, not column by column. The row that matters most is the one you can't change later.</p>
+    <div class="compare">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th class="us">Sidebrain (beta)</th>
+            <th>Sider</th>
+            <th>Monica</th>
+            <th>AlliHat</th>
+            <th>ChatGPTBox</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Payment model</td>
+            <td class="us"><span class="y">Free while in beta</span><small>MIT free edition; a paid Pro tier is planned after beta, not sold today</small></td>
+            <td>Subscription<small>own credit system</small></td>
+            <td>Subscription<small>own credit system, multi-model</small></td>
+            <td>Annual subscription<small>as of Oct 2026 — check their site</small></td>
+            <td><span class="y">Free</span><small>open source</small></td>
+          </tr>
+          <tr>
+            <td>Where memory lives</td>
+            <td class="us"><span class="y">Local file on your Mac</span><small>pages + conversations, searchable, deletable, snapshots</small></td>
+            <td><span class="q">Unclear</span><small>we could not confirm a local-store option</small></td>
+            <td>Cloud<small>history follows the account, per their docs</small></td>
+            <td><span class="q">Unclear</span><small>check their site</small></td>
+            <td><span class="y">Local</span><small>no sync service</small></td>
+          </tr>
+          <tr>
+            <td>Bring your own key</td>
+            <td class="us"><span class="y">Yes</span><small>Gemini, Groq, DeepSeek, OpenRouter, Cloudflare, Ollama</small></td>
+            <td><span class="q">Not confirmed</span><small>their model is credit-based</small></td>
+            <td><span class="n">No</span><small>own model pool</small></td>
+            <td><span class="q">Reported</span><small>BYOK mentioned publicly, not verified by us</small></td>
+            <td><span class="y">Yes</span></td>
+          </tr>
+          <tr>
+            <td>Reuse a subscription you already pay for</td>
+            <td class="us"><span class="y">Yes, in Pro beta</span><small>via the official codex / claude CLI you logged in yourself; off by default</small></td>
+            <td><span class="n">No</span></td>
+            <td><span class="n">No</span></td>
+            <td><span class="q">Reported</span><small>check their site; terms are your call</small></td>
+            <td><span class="n">No</span></td>
+          </tr>
+          <tr>
+            <td>Open source</td>
+            <td class="us">Free edition only<small>MIT; Pro is closed</small></td>
+            <td><span class="n">No</span></td>
+            <td><span class="n">No</span></td>
+            <td><span class="n">No</span></td>
+            <td><span class="y">Yes</span><small>MIT</small></td>
+          </tr>
+          <tr>
+            <td>Browser coverage</td>
+            <td class="us">Safari, macOS only<small>no iOS, no Chrome, no Windows</small></td>
+            <td>Multi-browser<small>Safari build reported as reduced</small></td>
+            <td>Multi-browser<small>Safari coverage unconfirmed</small></td>
+            <td>Safari, macOS</td>
+            <td>Chrome, Firefox<small>Safari build is a popup, not a docked panel</small></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">
+      "Unclear" and "not confirmed" mean exactly that — we did not find a public answer, and we would rather say so than guess.
+      Vendor pricing changes constantly, so this table compares <em>models</em> (subscription / one-time / open source) instead
+      of quoting numbers we can't keep current. Check each vendor's own page as of Oct 2026 before you decide.
+    </p>
+  </div>
+</section>
+
+<section id="worse">
+  <div class="wrap">
+    <h2>Where Sidebrain is the worse choice</h2>
+    <p class="lead">This is the part most comparison pages skip. Ours is shorter than theirs would be, but it is not empty.</p>
+    <ul class="worse">
+      <li>
+        <strong>It is beta. Real beta.</strong>
+        <span>Not "beta" as a marketing word: version 1.1.0, one developer, no support desk, no uptime promise. Sider and Monica have shipped for years, have iOS apps and answer tickets. Expect the panel to break on some site and expect to file an issue rather than get an apology email.</span>
+      </li>
+      <li>
+        <strong>You have to install an extension, not an app.</strong>
+        <span>There is no Mac App Store download. You install the free Userscripts extension, allow it on the sites you want, then drop <code>sidebrain.user.js</code> into the folder it shows you. Three minutes if nothing goes wrong — and it goes wrong more often than a store install does.</span>
+      </li>
+      <li>
+        <strong>Pro needs a Node service running on your Mac.</strong>
+        <span>Routing, memory and channel self-check live in a small local service under <code>~/ai-gateway</code>. It has to be started and left running; if it dies, the panel silently drops back to the free behaviour. Competitors put that logic on their own servers, which is exactly why they don't have this problem.</span>
+      </li>
+      <li>
+        <strong>Safari on macOS. Nothing else.</strong>
+        <span>No iOS, no iPad, no Chrome, no Windows, no sync between two Macs. And because Safari's extension APIs don't hand out a persistent page-docked panel, the panel is drawn inside the page by a userscript — so it does not appear on PDFs, image-only pages, or pages that block injected scripts.</span>
+      </li>
+    </ul>
+    <p class="note">Two more caveats: the subscription channel ships off by default, and whether using your ChatGPT or Claude plan through a CLI fits your agreement with them is a judgement only you can make — we invoke the CLI you installed, we never proxy or resell quota. Also, nothing here is a paid product yet, so there is no refund policy to argue about.</p>
+  </div>
+</section>
+
+<section id="money">
+  <div class="wrap">
+    <article>
+      <h2>The bill is decided by who buys the tokens</h2>
+      <p>
+        A subscription sidebar is a reseller. You pay OpenAI, Anthropic or Google for model access, then you pay a second time
+        for a panel that forwards your question to the same model. What that second payment buys is real — hosting, an account
+        system, a polished UI, someone to blame when it breaks — but it is charged on a schedule, whether you asked anything
+        that month or not, and the model underneath is the same one either way.
+      </p>
+      <p>
+        Sidebrain reorders it: free tiers first (Gemini, Groq, OpenRouter's free models, local Ollama), then the subscription
+        quota you already own, and only then a pay-per-token key. When a free tier hits its quota the router cools that channel
+        down and moves to the next one, and every answer prints which channel served it, how long it took and what it cost.
+        That last part is the honest bit: you can watch a question cost nothing, or eleven cents, at the moment it happens,
+        rather than at the end of a billing cycle.
+      </p>
+    </article>
+  </div>
+</section>
+
+<section id="memory">
+  <div class="wrap">
+    <article>
+      <h2>Memory is the choice you can't migrate later</h2>
+      <p>
+        Switching sidebars is easy until you have six months of reading history inside one. Then the vendor's database becomes
+        the reason you stay, which is exactly why "cloud memory" is such a good subscription feature and such a bad thing to
+        discover after the fact. Before you commit a year, open the vendor's docs and find the sentence that says where the
+        history is stored and whether you can export it.
+      </p>
+      <p>
+        Sidebrain's answer is deliberately boring: two JSONL files under <code>~/ai-gateway/memory/</code> on your Mac, one for
+        pages, one for conversations, searchable in plain language, deletable entry by entry, with automatic snapshots of the
+        last 20 delete and wipe operations. The trade is real — no sync between machines, no recovery if the disk dies, no web
+        dashboard — but nobody has to trust us with it, and you can read the file with <code>tail</code>.
+      </p>
+    </article>
+  </div>
+</section>
+
+<section id="decide">
+  <div class="wrap">
+    <h2>How to decide in five minutes</h2>
+    <p class="lead">Three cases, in this order. Stop at the first one that describes you.</p>
+    <article>
+      <p>
+        If your answer to "how much setup will I tolerate" is "none", take a hosted sidebar. Sider or Monica will be working
+        two minutes after you sign in, with mobile apps and a support address, and their free allowance is enough to find out
+        whether the habit sticks. Nobody should install a userscript just to discover they don't want a sidebar.
+      </p>
+      <p>
+        If you already pay for ChatGPT, Claude or a Gemini key, the arithmetic changes: every hosted panel asks you to buy that
+        access a second time, every month. Sidebrain's beta exists to spend the quota you already own — free tiers first, then
+        the plan you're logged into, then a key. It is free while we test it, and it is the roughest option on this page.
+      </p>
+      <p>
+        If the sensitive part is your history rather than your money, accept less convenience on purpose. A local file can be
+        read, deleted and backed up on your terms; a cloud account cannot be closed without losing the archive inside it. Weigh
+        that before you spend a year filling someone else's database.
+      </p>
+    </article>
+  </div>
+</section>
+
+<div class="endcta">
+  <div class="wrap">
+    <h2>It is free, and the useful thing you can give back is a bug report</h2>
+    <p>The free edition is the same sidebar without routing or memory, MIT licensed. The Pro beta adds the local service and is also free to test right now — there is nothing to buy, and we would rather hear what breaks than take your card.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/buzzmartglobal-art/sidebrain/releases/tag/v1.1.0">Download v1.1.0</a>
+      <a class="btn ghost" href="https://github.com/buzzmartglobal-art/sidebrain/issues/new/choose">Report a bug / send feedback</a>
+    </div>
+    <p class="fine">macOS + Safari 16 or newer · free while in beta · no account · bug reports: system version, Safari version, channel shown in the panel footer, steps to reproduce</p>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    Sidebrain is early beta software. Built and tested on macOS 26.5 / Safari 26.5.
+    Competitor details were checked in Oct 2026 and may be out of date — their sites are the source of truth.
+    <br>
+    <a href="index.html">Overview</a> ·
+    <a href="beta.html">Beta notes</a> ·
+    <a href="safari-ai-sidebar.html">Why Safari has so few sidebars</a> ·
+    <a href="https://github.com/buzzmartglobal-art/sidebrain">GitHub</a> ·
+    <a href="mailto:hi@sidebrain.app">hi@sidebrain.app</a>
+  </div>
+</footer>
+
+</body>
+</html>

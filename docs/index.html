@@ -110,6 +110,8 @@
     <div class="sp"></div>
     <a href="#how">How it works</a>
     <a href="#price">Pricing</a>
+    <a href="compare.html">Compare</a>
+    <a href="beta.html">Beta notes</a>
     <a href="https://github.com/buzzmartglobal-art/sidebrain">GitHub</a>
   </div>
 </header>
@@ -125,9 +127,9 @@
       </p>
       <div class="cta">
         <a class="btn primary" href="https://github.com/buzzmartglobal-art/sidebrain/releases/latest">Download free edition</a>
-        <a class="btn ghost" href="https://github.com/buzzmartglobal-art/sidebrain/issues/new?labels=waitlist&title=Pro+early+access&body=Interested+in+Pro+at+%2419.+Email+me+when+it+is+out%3A+">Get Pro — $19</a>
+        <a class="btn ghost" href="https://github.com/buzzmartglobal-art/sidebrain/issues/new/choose">Report a bug / send feedback</a>
       </div>
-      <p class="fine">macOS + Safari 16 or newer · free edition is free forever · Pro: 14 days free, then $19 once</p>
+      <p class="fine">macOS + Safari 16 or newer · free edition is MIT and free forever · Pro is in beta and not on sale yet</p>
     </div>
     <div class="shot"><img src="img/sidebar-chat.png" alt="Sidebrain sidebar answering a question about the page you are reading"></div>
   </div>
@@ -186,11 +188,11 @@
 
 <section id="price">
   <div class="wrap">
-    <h2>Pricing</h2>
-    <p class="lead">One payment. Updates included for 12 months. No account, no seats, no metering.</p>
-    <div class="pricebox" style="grid-template-columns:repeat(3,1fr)">
+    <h2>What it costs</h2>
+    <p class="lead">Nothing right now. The free edition is MIT-licensed and stays free. Pro is in beta — you can run it, and the only thing I ask in return is that you tell me what breaks.</p>
+    <div class="pricebox" style="grid-template-columns:repeat(2,1fr)">
       <div class="tier">
-        <div class="tag">Free edition</div>
+        <div class="tag">Free edition · available today</div>
         <div class="amount">$0</div>
         <ul>
           <li>Sidebar with ⇧⌘K on any site</li>
@@ -199,34 +201,23 @@
           <li>8 turns of history per tab</li>
           <li>MIT licensed, on GitHub</li>
         </ul>
-        <a class="btn ghost" href="https://github.com/buzzmartglobal-art/sidebrain/releases/latest">Download</a>
-      </div>
-      <div class="tier">
-        <div class="tag">Pro · 14-day trial</div>
-        <div class="amount">$0 <small>for 14 days</small></div>
-        <ul>
-          <li>Everything Pro does, unlocked</li>
-          <li>Three-tier routing, multi-key rotation</li>
-          <li>Memory for pages and conversations</li>
-          <li>Channel self-check, subscription channels</li>
-          <li>No card. No account. Nothing to cancel.</li>
-        </ul>
-        <a class="btn ghost" href="https://github.com/buzzmartglobal-art/sidebrain/releases/download/v1.1.0/sidebrain-trial.zip">Start the trial</a>
-        <p class="fine">When the 14 days are up, routing and memory pause and it keeps working as the free edition. Nothing is deleted.</p>
+        <a class="btn primary" href="https://github.com/buzzmartglobal-art/sidebrain/releases/latest">Download free edition</a>
       </div>
       <div class="tier pro">
-        <div class="tag">Pro · early bird</div>
-        <div class="amount">$19 <small>once · first 50</small></div>
+        <div class="tag">Pro · beta, free to try</div>
+        <div class="amount">$0 <small>while in beta</small></div>
         <ul>
-          <li>Everything in the trial, permanently</li>
-          <li>License key, works offline after activation</li>
-          <li>Updates for 12 months</li>
-          <li>14-day refund, no questions</li>
+          <li>Three-tier routing: free tier → your subscription → paid API</li>
+          <li>Memory for pages and for conversations, stored on your Mac</li>
+          <li>Channel self-check, multi-key rotation, 429 cooldown</li>
+          <li>Optional ChatGPT / Claude subscription channels, off by default</li>
+          <li>Needs a small local Node service — see the setup notes</li>
         </ul>
-        <a class="btn primary" href="https://9073956522523.gumroad.com/l/sidebrain-pro" id="buy">Buy — $19</a>
-        <p class="fine">Card or PayPal. The license key arrives by email and works offline.</p>
+        <a class="btn ghost" href="https://github.com/buzzmartglobal-art/sidebrain/releases/download/v1.1.0/sidebrain-trial.zip">Try the beta build</a>
+        <p class="fine">When the beta ends there will be a paid tier. Beta testers hear first and get a say in what it is. Nothing you can install today will stop working or start charging on its own.</p>
       </div>
     </div>
+    <p class="fine" style="margin-top:18px">Read the <a href="beta.html">beta notes</a> for known issues, or the <a href="compare.html">comparison</a> for how this differs from Sider, Monica, AlliHat and ChatGPTBox — including the four ways we are worse.</p>
   </div>
 </section>
 
@@ -239,9 +230,9 @@
       <details><summary>Why not an App Store app?</summary><p>Safari extensions can't carry a persistent right-side panel through a normal extension; a userscript runs in the page and can. It also means no review queue and no Xcode on your side. A native app is planned.</p></details>
       <details><summary>Where exactly is my data?</summary><p>In <code>~/ai-gateway/memory/</code> — two JSONL files, one for pages, one for conversations. Backups of the last 20 delete/wipe operations sit next to them. Nothing is uploaded anywhere.</p></details>
       <details><summary>What happens when a free tier runs out?</summary><p>The channel is put on cooldown for as long as the provider asks, the router skips it, and it comes back on its own. You see which channel answered under every reply.</p></details>
-      <details><summary>How does the 14-day trial work?</summary><p>The Pro package runs at full strength for 14 days from first launch, no card and no account. When it ends, routing and memory pause and the app keeps working as the free edition — your saved memory stays on disk untouched. A license key turns it back on permanently.</p></details>
-      <details><summary>Where do I get a license key?</summary><p>Checkout sends one by email. Paste it into ⚙︎ → 许可证 and it verifies against the store once, then works offline.</p></details>
-      <details><summary>Refunds?</summary><p>14 days, no questions. Tell me what went wrong and I'll also try to fix it.</p></details>
+      <details><summary>Is this a finished product?</summary><p>No. Pro is a beta: one developer, no support desk. Expect the panel to break on some sites. The <a href="beta.html">beta notes</a> list what is known to be broken and what to include in a report.</p></details>
+      <details><summary>What do you want from testers?</summary><p>Which site it broke on, which channel answered (the line under the reply), and what you expected instead. That is it — <a href="https://github.com/buzzmartglobal-art/sidebrain/issues/new/choose">open an issue</a>.</p></details>
+      <details><summary>Will it cost money later?</summary><p>Yes, a Pro tier is planned after the beta. Nothing you install today starts charging by itself, and testers get told before anyone else.</p></details>
     </div>
   </div>
 </section>
