@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sidebrain — an AI sidebar for Safari that doesn't bill you twice</title>
+<meta name="description" content="A Safari sidebar that uses the ChatGPT, Claude, Gemini, Groq, DeepSeek or local Ollama you already have — and keeps what you read and ask on your own Mac.">
+<meta property="og:title" content="Sidebrain — AI sidebar for Safari">
+<meta property="og:description" content="Use the models you already pay for. Keep the memory on your own Mac. One-time price, no subscription.">
+<meta property="og:image" content="img/sidebar-chat.png">
+<style>
+  :root {
+    --ink: #12151a;
+    --ink-2: #3c4553;
+    --muted: #6b7686;
+    --line: #e3e7ee;
+    --bg: #fbfbfd;
+    --card: #ffffff;
+    --accent: #2f6fed;
+    --accent-soft: #eaf1ff;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px; }
+
+  header { padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .nav { display: flex; align-items: center; gap: 18px; }
+  .logo { font-weight: 650; letter-spacing: -.01em; font-size: 17px; }
+  .logo span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .nav .sp { flex: 1; }
+  .nav a { font-size: 14px; color: var(--ink-2); }
+
+  .hero { padding: 68px 0 20px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 48px; align-items: center; }
+  h1 { font-size: 46px; line-height: 1.14; letter-spacing: -.025em; margin: 0 0 20px; }
+  .sub { font-size: 18.5px; color: var(--ink-2); margin: 0 0 28px; }
+  .sub b { color: var(--ink); font-weight: 620; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .btn { display: inline-block; padding: 12px 20px; border-radius: 10px; font-weight: 580; font-size: 15px; border: 1px solid transparent; }
+  .btn.primary { background: var(--ink); color: #fff; }
+  .btn.primary:hover { background: #000; text-decoration: none; }
+  .btn.ghost { border-color: var(--line); background: #fff; color: var(--ink); }
+  .btn.ghost:hover { border-color: #c9d1de; text-decoration: none; }
+  .fine { font-size: 13px; color: var(--muted); margin-top: 14px; }
+  .shot { position: relative; }
+  .shot img { width: 100%; border-radius: 12px; box-shadow: 0 18px 50px rgba(16, 24, 40, .16), 0 0 0 1px rgba(16,24,40,.06); display: block; }
+
+  section { padding: 62px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 30px; letter-spacing: -.02em; margin: 0 0 10px; }
+  .lead { color: var(--ink-2); font-size: 17px; margin: 0 0 34px; max-width: 640px; }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+  .card h3 { margin: 0 0 8px; font-size: 16.5px; letter-spacing: -.01em; }
+  .card p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+  .card .num { font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px; }
+
+  .steps { counter-reset: s; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .step { position: relative; padding-top: 38px; }
+  .step:before {
+    counter-increment: s; content: counter(s);
+    position: absolute; top: 0; left: 0; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 650;
+    display: grid; place-items: center;
+  }
+  .step h3 { margin: 0 0 6px; font-size: 15.5px; }
+  .step p { margin: 0; font-size: 14px; color: var(--ink-2); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; color: var(--ink-2); font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+  td.y { color: #1a7f4b; font-weight: 600; }
+  td.n { color: #a4adba; }
+  .pricebox { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .tier { border: 1px solid var(--line); border-radius: var(--radius); padding: 26px; background: #fff; }
+  .tier.pro { border-color: #cfdcf7; box-shadow: 0 10px 30px rgba(47,111,237,.08); }
+  .tier .tag { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .tier .amount { font-size: 34px; letter-spacing: -.02em; margin: 6px 0 2px; }
+  .tier .amount small { font-size: 14px; color: var(--muted); font-weight: 400; }
+  .tier ul { margin: 16px 0 20px; padding-left: 18px; color: var(--ink-2); font-size: 14.5px; }
+  .tier li { margin: 6px 0; }
+
+  details { border-bottom: 1px solid var(--line); padding: 14px 0; }
+  summary { cursor: pointer; font-weight: 560; font-size: 15.5px; }
+  details p { color: var(--ink-2); font-size: 14.5px; margin: 10px 0 0; }
+
+  footer { padding: 40px 0 60px; color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--line); }
+  footer a { color: var(--ink-2); }
+
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: 1fr; gap: 32px; padding-top: 44px; }
+    h1 { font-size: 34px; }
+    .grid, .steps, .pricebox { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="logo">Sidebrain <span>for Safari</span></div>
+    <div class="sp"></div>
+    <a href="#how">How it works</a>
+    <a href="#price">Pricing</a>
+    <a href="https://github.com/buzzmartglobal-art/sidebrain">GitHub</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <h1>An AI sidebar for Safari that doesn't bill you twice.</h1>
+      <p class="sub">
+        You already pay for ChatGPT, Claude or a Gemini key. Sidebrain docks a panel into Safari and
+        <b>uses those</b> — free tiers first, your subscription second, pay-per-token last.
+        Everything you read and ask stays <b>on your own Mac</b>.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/buzzmartglobal-art/sidebrain/releases/latest">Download free edition</a>
+        <a class="btn ghost" href="https://github.com/buzzmartglobal-art/sidebrain/issues/new?labels=waitlist&title=Pro+early+access&body=Interested+in+Pro+at+%2419.+Email+me+when+it+is+out%3A+">Get Pro — $19</a>
+      </div>
+      <p class="fine">macOS + Safari 16 or newer · free edition is free forever · Pro is one payment, no subscription</p>
+    </div>
+    <div class="shot"><img src="img/sidebar-chat.png" alt="Sidebrain sidebar answering a question about the page you are reading"></div>
+  </div>
+</div>
+
+<section id="why">
+  <div class="wrap">
+    <h2>Three things the others won't do</h2>
+    <p class="lead">Every other sidebar is a reseller: you pay them monthly to reach a model you could reach yourself, and your history lives on their servers.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="num">01</div>
+        <h3>Free tier first, always</h3>
+        <p>Gemini's free tier, Groq, Cloudflare, OpenRouter's free models — the router tries those before it touches anything that costs money. When one runs out of quota it moves to the next key or the next provider by itself.</p>
+      </div>
+      <div class="card">
+        <div class="num">02</div>
+        <h3>Your subscription counts as free</h3>
+        <p>If ChatGPT or Claude is installed and logged in on your Mac, Pro can use that quota through the official CLI. You paid for it already. There's a switch for it, off by default.</p>
+      </div>
+      <div class="card">
+        <div class="num">03</div>
+        <h3>Memory on your disk</h3>
+        <p>Pages you read and questions you ask are stored in one file on your Mac, searchable in plain language. Read it, delete an entry, or wipe it — with automatic snapshots so a mistake is undoable.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2>Installed in about three minutes</h2>
+    <p class="lead">No account. No sign-in to us. The only thing you need is one API key — Gemini's free tier is enough to start.</p>
+    <div class="steps">
+      <div class="step"><h3>Install Userscripts</h3><p>A free extension from the Mac App Store. Sidebrain is a userscript, so no Xcode, no signing.</p></div>
+      <div class="step"><h3>Drop in the file</h3><p>Save <code>sidebrain.user.js</code> into the folder the extension shows you.</p></div>
+      <div class="step"><h3>Press ⇧⌘K</h3><p>The panel opens on any page. Pin it to the side and it stays there while you browse.</p></div>
+      <div class="step"><h3>Paste one key</h3><p>Gemini, Groq, DeepSeek, OpenRouter or a local Ollama — pick one, save, ask something.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="memory">
+  <div class="wrap hero" style="padding:0">
+    <div>
+      <h2>"What was that headphone review I read last month?"</h2>
+      <p class="lead">Pro remembers pages and conversations, then finds them by meaning rather than exact words. Ask sideways and it still lands.</p>
+      <p style="color:var(--ink-2);font-size:15px">
+        Each entry shows where it came from, when, and which channel answered — so you can tell a page you read from something a model told you.
+        Delete one, wipe a category, or restore the last snapshot.
+      </p>
+    </div>
+    <div class="shot"><img src="img/sidebar-memory.png" alt="Sidebrain memory panel listing pages and past conversations"></div>
+  </div>
+</section>
+
+<section id="price">
+  <div class="wrap">
+    <h2>Pricing</h2>
+    <p class="lead">One payment. Updates included for 12 months. No account, no seats, no metering.</p>
+    <div class="pricebox">
+      <div class="tier">
+        <div class="tag">Free edition</div>
+        <div class="amount">$0</div>
+        <ul>
+          <li>Sidebar with ⇧⌘K on any site</li>
+          <li>Manual model choice: Gemini, Groq, DeepSeek, OpenRouter, Ollama</li>
+          <li>Reads the page you're on as context</li>
+          <li>8 turns of history per tab</li>
+          <li>Copy, read aloud, 👍/👎</li>
+          <li>MIT licensed, on GitHub</li>
+        </ul>
+        <a class="btn ghost" href="https://github.com/buzzmartglobal-art/sidebrain/releases/latest">Download</a>
+      </div>
+      <div class="tier pro">
+        <div class="tag">Pro · early bird</div>
+        <div class="amount">$19 <small>once · first 50</small></div>
+        <ul>
+          <li>Everything in Free</li>
+          <li><b>Three-tier auto routing</b> — free → subscription → paid API</li>
+          <li>Multi-key rotation and automatic fallback on rate limits</li>
+          <li><b>Memory</b>: pages + conversations, semantic search, panel with per-entry delete</li>
+          <li>Channel self-check: which key is alive, which is out of quota</li>
+          <li>Subscription channels (official CLI already on your Mac)</li>
+          <li>Free web search via your own machine</li>
+        </ul>
+        <a class="btn primary" href="https://github.com/buzzmartglobal-art/sidebrain/issues/new?labels=waitlist&title=Pro+early+access&body=Interested+in+Pro+at+%2419.+Email+me+when+it+is+out%3A+" id="buy">Get Pro — $19</a>
+        <p class="fine" style="margin-top:8px">Checkout opens this week — leave your email on the waitlist and I'll send it first.</p>
+        <p class="fine">Delivered as the userscript plus a small local service (Node, no dependencies). 14-day refund, no questions.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <h2>Questions</h2>
+    <div style="margin-top:26px">
+      <details><summary>Do I need to sign in to Sidebrain?</summary><p>No. There is no Sidebrain account. Your API keys are stored in Safari's userscript storage on your Mac and sent only to the provider you picked.</p></details>
+      <details><summary>Does it work with my ChatGPT Plus subscription?</summary><p>Pro can use the OpenAI CLI you installed and logged into yourself. Whether that use fits your agreement with OpenAI is your call — the switch ships off by default, and we never proxy or resell quota.</p></details>
+      <details><summary>Why not an App Store app?</summary><p>Safari extensions can't carry a persistent right-side panel through a normal extension; a userscript runs in the page and can. It also means no review queue and no Xcode on your side. A native app is planned.</p></details>
+      <details><summary>Where exactly is my data?</summary><p>In <code>~/ai-gateway/memory/</code> — two JSONL files, one for pages, one for conversations. Backups of the last 20 delete/wipe operations sit next to them. Nothing is uploaded anywhere.</p></details>
+      <details><summary>What happens when a free tier runs out?</summary><p>The channel is put on cooldown for as long as the provider asks, the router skips it, and it comes back on its own. You see which channel answered under every reply.</p></details>
+      <details><summary>Refunds?</summary><p>14 days, no questions. Tell me what went wrong and I'll also try to fix it.</p></details>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Sidebrain is early beta software. Built and tested on macOS 26.5 / Safari 26.5.
+    <br>
+    <a href="https://github.com/buzzmartglobal-art/sidebrain">GitHub</a> ·
+    <a href="https://github.com/buzzmartglobal-art/sidebrain/issues">Report a bug</a> ·
+    <a href="mailto:hi@sidebrain.app">hi@sidebrain.app</a>
+  </div>
+</footer>
+
+</body>
+</html>

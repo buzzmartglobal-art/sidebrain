@@ -664,6 +664,10 @@
   .memp.on { display: flex; }
   .memp-top { padding: 10px 12px; border-bottom: 1px solid #2a2e36; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #93a0b5; }
   .memp-top b { color: #d7dde8; font-weight: 600; }
+  .memp-tabs { display: flex; gap: 6px; padding: 8px 12px 0; align-items: center; }
+  .mtab { background: #1c2027; border: 1px solid #2f3540; color: #93a0b5; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; }
+  .mtab.on { background: #2a3546; border-color: #3d5673; color: #e3ecfa; }
+  .memp-chatall { background: none; border: none; color: #6b7484; cursor: pointer; display: none; }
   .memp-q { padding: 8px 12px; border-bottom: 1px solid #2a2e36; }
   .memp-q input { width: 100%; background: #1c2027; border: 1px solid #2f3540; border-radius: 6px; padding: 6px 8px; outline: none; color: #d7dde8; font-size: 12px; }
   .memp-list { flex: 1; overflow-y: auto; }
@@ -672,7 +676,17 @@
   .memp-main { flex: 1; min-width: 0; }
   .memp-title { font-size: 12px; color: #dde3ee; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .memp-meta { font-size: 10.5px; color: #6b7484; margin-top: 2px; }
+  .memp-kind { font-size: 10px; padding: 1px 5px; border-radius: 4px; margin-right: 5px; }
+  .memp-kind.page { background: #1f2a36; color: #7fa8d6; }
+  .memp-kind.chat { background: #2a2436; color: #b194d6; }
   .memp-ex { font-size: 11px; color: #8b95a7; margin-top: 3px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .memp-item.open { background: #191d23; }
+  .memp-caret { color: #5b6675; font-size: 11px; }
+  .memp-detail { padding: 10px 0 2px; border-top: 1px dashed #2a3038; margin-top: 8px; }
+  .memp-d-q { font-size: 12.5px; color: #cfd7e3; line-height: 1.5; margin-bottom: 6px; }
+  .memp-d-a { font-size: 12px; color: #9aa5b6; line-height: 1.65; white-space: pre-wrap; max-height: 260px; overflow-y: auto; }
+  .memp-d-meta { font-size: 10.5px; color: #6b7484; margin-top: 8px; }
+  .memp-d-open { color: #6f9fd8; cursor: pointer; }
   .memp-del { background: none; border: 1px solid #3a2a2a; color: #c98b8b; border-radius: 6px; font-size: 11px; padding: 3px 7px; cursor: pointer; flex: 0 0 auto; }
   .memp-del:hover { background: #2a1d1d; }
   .memp-foot { padding: 8px 12px; border-top: 1px solid #2a2e36; display: flex; gap: 8px; align-items: center; }
@@ -685,10 +699,10 @@
     <div class="bar">
       <span class="t">AI</span>
       <select id="model">
-        <option value="auto">自动 · 免费优先（0 元，栏内按质量排）</option>
-        <option value="auto-b">自动 · 平衡（小模型判类别 + 难度）</option>
-        <option value="auto-s">自动 · 速度优先（几分/次）</option>
-        <option value="auto-q">自动 · 质量优先（订阅打底，最强）</option>
+        <option value="auto">自动 · 免费优先（0 元）</option>
+        <option value="auto-b">自动 · 平衡（默认）</option>
+        <option value="auto-s">自动 · 速度优先</option>
+        <option value="auto-q">自动 · 质量优先</option>
         <optgroup label="订阅（0 边际，有每日上限）">
           <option value="chatgpt-sub">ChatGPT 订阅（Codex CLI）</option>
           <option value="claude-sub">Claude 订阅（CLI，非网页）</option>
@@ -717,9 +731,16 @@
     </div>
     <div class="memp" id="memp">
       <div class="memp-top">
-        <span>记忆 · <b id="mem-count">0</b> 页 · <span id="mem-size">0 KB</span></span>
+        <span>记忆 · 网页 <b id="mem-count">0</b> · 对话 <b id="mem-chatcount">0</b> · <span id="mem-size">0 KB</span></span>
         <span style="flex:1"></span>
         <button class="ico" id="mem-close" title="关闭">✕</button>
+      </div>
+      <div class="memp-tabs">
+        <button class="mtab on" data-t="all">全部</button>
+        <button class="mtab" data-t="page">网页</button>
+        <button class="mtab" data-t="chat">对话</button>
+        <span style="flex:1"></span>
+        <button class="memp-chatall" id="mem-chatall" title="只看对话">💬</button>
       </div>
       <div class="memp-q"><input id="mem-q" type="text" placeholder="搜一条记忆：随便打几个词，比如「降噪耳机测评」"></div>
       <div class="memp-list" id="mem-list"></div>
@@ -1262,7 +1283,7 @@
       else $('ack').style.display = 'none';
     });
   });
-  $('aver').textContent = '0.22.2';
+  $('aver').textContent = '0.23.1';
   // 免费版：隐藏所有依赖本地网关、以及多 key 的入口
   if (!IS_PRO) {
     ['memlist', 'memobtn', 'searchbtn'].forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
@@ -1271,7 +1292,20 @@
 
   // ---------- 记忆面板：看过哪些页 / 删单条 / 一键清空 ----------
   let MEM_OFFSET = 0;
+  let MEM_TYPE = 'all';
+  GM.getValue('memTab', 'all').then(v => {
+    if (!v || !['all', 'page', 'chat'].includes(v)) return;
+    MEM_TYPE = v;
+    const t = root.querySelector(`.mtab[data-t="${v}"]`);
+    if (t) { root.querySelectorAll('.mtab').forEach(x => x.classList.toggle('on', x === t)); }
+  });
   const MEM_PAGE = 20;
+  const memEmptyText = () => {
+    if (($('mem-q').value || '').trim()) return '没搜到。换个词试试。';
+    if (MEM_TYPE === 'chat') return '还没记下对话。<br>开着 🧠 问几句，回来就有了。';
+    if (MEM_TYPE === 'page') return '还没记下任何页面。<br>开着 🧠 逛几个网页，回来就有了。';
+    return '还没记下什么。<br>开着 🧠 逛几个网页、问几句话，回来就有了。';
+  };
   const memDate = ts => {
     const d = new Date(ts);
     if (isNaN(d)) return '';
@@ -1297,10 +1331,15 @@
   function memRow(it) {
     const el = document.createElement('div');
     el.className = 'memp-item';
+    const isChat = it.type === 'chat';
+    const kind = `<span class="memp-kind ${isChat ? 'chat' : 'page'}">${isChat ? '对话' : '网页'}</span>`;
+    const meta = isChat
+      ? `${kind}${memEsc(it.channel || '本机')} · ${memDate(it.ts)} · ${it.chars} 字`
+      : `${kind}${memEsc(it.domain)} · ${memDate(it.ts)} · ${it.chars} 字`;
     el.innerHTML =
       `<div class="memp-main">` +
-        `<div class="memp-title" title="${memEsc(it.title || it.url)}">${memEsc(it.title || '(无标题)')}</div>` +
-        `<div class="memp-meta">${memEsc(it.domain)} · ${memDate(it.ts)} · ${it.chars} 字</div>` +
+        `<div class="memp-title" title="${memEsc(it.title || it.url)}">${memEsc(it.title || '(无标题)')}${isChat ? ' <span class="memp-caret">⌄</span>' : ''}</div>` +
+        `<div class="memp-meta">${meta}</div>` +
         (it.excerpt ? `<div class="memp-ex">${memEsc(it.excerpt)}</div>` : '') +
       `</div>`;
     const del = document.createElement('button');
@@ -1315,7 +1354,7 @@
       }
       del.disabled = true;
       try {
-        const r = await memFetch('/memory/forget', { url: it.url });
+        const r = await memFetch('/memory/forget', it.type === 'chat' ? { id: it.id, type: 'chat' } : { url: it.url, type: 'page' });
         el.remove();
         memBump(-1);
         bubble('a', '删掉了这条。' + (r.backup ? '（删之前存了快照，可点「恢复上次快照」找回）' : ''));
@@ -1325,7 +1364,30 @@
       }
     };
     el.appendChild(del);
-    el.querySelector('.memp-main').onclick = () => window.open(it.url, '_blank');
+
+    if (isChat) {
+      // 点开看这段对话本身，不跳原网页
+      const detail = document.createElement('div');
+      detail.className = 'memp-detail';
+      const lvl = it.level ? ` · 难度 ${it.level}` : '';
+      const kindName = { simple: '简单', code: '代码', writing: '写作', hard: '硬' }[it.kind] || it.kind || '';
+      detail.innerHTML =
+        `<div class="memp-d-q">${memEsc(it.q || it.title)}</div>` +
+        `<div class="memp-d-a">${memEsc(it.a || it.excerpt || '')}</div>` +
+        `<div class="memp-d-meta">${memEsc(it.channel || '')} · ${memEsc(kindName + lvl)} · ${it.ms ? '耗时 ' + (it.ms / 1000).toFixed(1) + 's · ' : ''}${it.chars} 字` +
+        (it.url ? ` · <span class="memp-d-open">打开当时的页面</span>` : '') + `</div>`;
+      detail.style.display = 'none';
+      el.appendChild(detail);
+      const openLink = detail.querySelector('.memp-d-open');
+      if (openLink) openLink.onclick = e => { e.stopPropagation(); window.open(it.url, '_blank'); };
+      el.querySelector('.memp-main').onclick = () => {
+        const on = detail.style.display !== 'none';
+        detail.style.display = on ? 'none' : 'block';
+        el.classList.toggle('open', !on);
+      };
+    } else if (it.url) {
+      el.querySelector('.memp-main').onclick = () => window.open(it.url, '_blank');
+    }
     return el;
   }
 
@@ -1341,12 +1403,12 @@
     const q = ($('mem-q').value || '').trim();
     list.insertAdjacentHTML('beforeend', '<div class="memp-empty" id="mem-loading">读取中…</div>');
     try {
-      const j = await memFetch(`/memory/list?limit=${MEM_PAGE}&offset=${MEM_OFFSET}&q=${encodeURIComponent(q)}`);
+      const j = await memFetch(`/memory/list?limit=${MEM_PAGE}&offset=${MEM_OFFSET}&type=${MEM_TYPE}&q=${encodeURIComponent(q)}`);
       const loading = $('mem-loading');
       if (loading) loading.remove();
       $('mem-count').textContent = j.total;
       if (reset && !j.rows.length) {
-        list.innerHTML = `<div class="memp-empty">${q ? '没搜到。换个词试试。' : '还没记下任何页面。<br>开着 🧠 逛几个网页，回来就有了。'}</div>`;
+        list.innerHTML = `<div class="memp-empty">${memEmptyText()}</div>`;
       }
       j.rows.forEach(it => list.appendChild(memRow(it)));
       MEM_OFFSET += j.rows.length;
@@ -1363,10 +1425,25 @@
     try {
       const st = await memFetch('/memory/stats');
       $('mem-count').textContent = st.pages;
+      $('mem-chatcount').textContent = st.chats ?? 0;
       $('mem-size').textContent = (st.bytes / 1024).toFixed(0) + ' KB';
     } catch (_) {}
     memLoad(true);
   }
+
+  root.querySelectorAll('.mtab').forEach(t => {
+    t.onclick = () => {
+      root.querySelectorAll('.mtab').forEach(x => x.classList.toggle('on', x === t));
+      MEM_TYPE = t.dataset.t;
+      GM.setValue('memTab', MEM_TYPE);
+      $('mem-clear').textContent = MEM_TYPE === 'all' ? '一键清空' : '清空这一类';
+      memLoad(true);
+    };
+  });
+  $('mem-chatall').onclick = () => {
+    const t = root.querySelector('.mtab[data-t="chat"]');
+    if (t) t.click();
+  };
 
   $('memlist').onclick = () => memOpen();
   $('mem-close').onclick = () => $('memp').classList.remove('on');
@@ -1380,12 +1457,12 @@
     const btn = $('mem-clear');
     if (btn.dataset.armed !== '1') {
       btn.dataset.armed = '1';
-      btn.textContent = '真的全清？再点一次';
+      btn.textContent = MEM_TYPE === 'all' ? '真的全清？再点一次' : `真的清空${MEM_TYPE === 'chat' ? '对话' : '网页'}？再点一次`;
       return;
     }
     btn.disabled = true;
     try {
-      const r = await memFetch('/memory/clear', {});
+      const r = await memFetch('/memory/clear', MEM_TYPE === 'all' ? { all: true } : { type: MEM_TYPE });
       btn.dataset.armed = '';
       btn.textContent = '一键清空';
       btn.disabled = false;
@@ -1398,8 +1475,8 @@
   };
   $('mem-restore').onclick = async () => {
     try {
-      const r = await memFetch('/memory/restore', {});
-      bubble('a', `已从快照恢复 ${r.pages} 条。`);
+      const r = await memFetch('/memory/restore', { type: MEM_TYPE === 'all' ? 'page' : MEM_TYPE });
+      bubble('a', `已从快照恢复 ${r.rows} 条。`);
       memLoad(true);
     } catch (e) {
       bubble('a', '恢复失败：' + e.message);
@@ -1654,7 +1731,7 @@
             sj.results.slice(0, 6).forEach(x => sources.push({ title: x.title, url: x.url }));
           }
         } catch (e) {
-          notes.push('搜索失败');
+          // 搜索是增强项，失败就不出声，别把技术噪音塞给用户
         }
         b.innerHTML = md('…');
       }
@@ -1736,6 +1813,21 @@
           chain: chainList.map(c => c.m),
         });
         history.push({ role: 'assistant', content: answer });
+        // 对话即记：这一轮问了什么、谁答的、答了什么，都进本机记忆
+        if (IS_PRO && MEMORY_ON) {
+          gm({
+            method: 'POST',
+            url: `${CFG.gatewayUrl}/memory/chat`,
+            headers: { 'Content-Type': 'application/json' },
+            data: JSON.stringify({
+              q: text, a: answer,
+              url: location.href, title: document.title || '',
+              channel: `${used.p} · ${used.m}`, kind: route ? route.kind : '', level: route ? route.level : 0,
+              ms: Date.now() - t0,
+            }),
+            timeout: 12000,
+          }).catch(() => {});
+        }
       } else {
         b.className = 'm err';
         b.textContent = `出错：${lastErr ? lastErr.message : '未知错误'}`;
