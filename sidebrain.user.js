@@ -78,6 +78,9 @@
 
   const EDITION = 'free';
   const IS_PRO = EDITION === 'pro';
+  // 试用到期 / 未激活时，Pro 能力在客户端也一起关掉（服务端同样会拦）
+  let PRO_ON = IS_PRO;
+  let TRIAL = null;
   let CFG = { ...DEFAULTS };
   let MODEL_CHOICE = 'auto-b';
   let busy = false;
@@ -100,7 +103,7 @@
   // 同一个 Gemini 模型可以轮流用几把 key：免费额度是按 key 算的
   function gemKey(t) {
     const i = (t && t.k) || 1;
-    if (!IS_PRO && i > 1) return '';
+    if (!PRO_ON && i > 1) return '';
     return [CFG.geminiKey, CFG.geminiKey2, CFG.geminiKey3][i - 1] || '';
   }
 
@@ -207,7 +210,7 @@
     openrouter: () => !!CFG.openrouterKey,
     anthropic: () => !!CFG.anthropicKey,
     groq: () => !!CFG.groqKey,
-    groq2: () => IS_PRO && !!CFG.groqKey2,
+    groq2: () => PRO_ON && !!CFG.groqKey2,
     // Cloudflare 走本地网关转发，key 存在网关那边，侧边栏不持有
   };
 
@@ -227,7 +230,7 @@
       if (t.p === 'chatgpt-sub' && !CFG.subChatGPT) continue;
       if (t.p === 'claude-sub' && !CFG.subClaude) continue;
       // 免费版没有本地网关，走网关的通道（订阅 / Cloudflare）一律不参与
-      if (!IS_PRO && (t.p === 'cf' || t.p === 'chatgpt-sub' || t.p === 'claude-sub')) continue;
+      if (!PRO_ON && (t.p === 'cf' || t.p === 'chatgpt-sub' || t.p === 'claude-sub')) continue;
       // 没填 key 的通道直接不参与路由，别让它在链上白报一次错
       const K = NEED_KEY[t.p];
       if (K && !K()) continue;
@@ -255,7 +258,7 @@
   // 返回 { kind, level, src, ms }：判官最慢约 1.2s，超时就走启发式（不拦路）
   let lastRoute = null;
   async function decideKind(text) {
-    if (!IS_PRO) {
+    if (!PRO_ON) {
       const h = heuristicKind(text, lastContext);
       lastRoute = { kind: h, src: 'heuristic', ms: 0 };
       return lastRoute;
@@ -803,6 +806,14 @@
         <div class="hint" id="fstats" style="opacity:.8;margin-top:6px;line-height:1.8;font-family:ui-monospace,Menlo,monospace"></div>
         <div class="hint" style="opacity:.6;margin-top:4px">得分 = (👍+2)/(👍+👎+4)。同一成本档内，得分高的排前面；差距小于 0.12 不动，避免一票就抖。</div>
       </details>
+      <div class="row" id="lic-row" style="margin-top:10px">
+        <label>许可证（购买后邮件里那串）</label>
+        <div style="display:flex;gap:6px">
+          <input id="lic-input" type="text" placeholder="XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX" style="flex:1">
+          <button class="send" id="lic-btn" style="padding:5px 10px;font-size:12px;background:#3a4048">激活</button>
+        </div>
+        <div class="hint" id="lic-hint" style="margin-top:6px">试用状态：读取中…</div>
+      </div>
       <details style="margin-top:4px">
         <summary style="cursor:pointer;font-size:12px;color:#8b95a7">关于 / 免责说明（v<span id="aver">—</span>）</summary>
         <div class="hint" style="opacity:.75;margin-top:6px;line-height:1.6">
@@ -1176,7 +1187,7 @@
   // ---------- 浏览即记：页面停留 4 秒后自动入库 ----------
   let capturedThisPage = false;
   function autoCapture() {
-    if (!IS_PRO) return;   // 免费版没有本地记忆
+    if (!PRO_ON) return;   // 免费版 / 试用结束：没有本地记忆
     if (!MEMORY_ON || capturedThisPage) return;
     if (!/^https?:/i.test(location.href)) return;
     const txt = readPage();
@@ -1190,6 +1201,7 @@
       timeout: 12000,
     });
   }
+  setTimeout(refreshTrial, 600);
   setTimeout(autoCapture, 4000);
   let lastHref = location.href;
   setInterval(() => {
@@ -1284,6 +1296,59 @@
     });
   });
   $('aver').textContent = '0.23.1';
+
+  // ---------- 试用 / 许可证 ----------
+  function paintLic(st) {
+    const hint = $('lic-hint');
+    if (!hint) return;
+    if (!IS_PRO) { $('lic-row').style.display = 'none'; return; }
+    const st2 = st || TRIAL;
+    if (!st2) { hint.textContent = '试用状态读不到（本地服务没起来？）'; return; }
+    if (st2.state === 'licensed') {
+      hint.innerHTML = `已激活 ✓ ${memEsc(st2.key || '')}` + (st2.licensedAt ? ` · ${memDate(st2.licensedAt)}` : '');
+      hint.style.color = '#7fb08a';
+    } else if (st2.state === 'trial') {
+      hint.innerHTML = `试用中 · 还剩 <b>${st2.daysLeft}</b> 天（共 ${st2.trialDays} 天）· 到期后记忆和自动路由会暂停`;
+      hint.style.color = '#93a0b5';
+    } else {
+      hint.innerHTML = '试用已结束 · 自动路由和记忆已暂停，手选模型照常能用';
+      hint.style.color = '#c98b8b';
+    }
+  }
+
+  async function refreshTrial() {
+    if (!IS_PRO) return;
+    try {
+      const r = await gm({ method: 'GET', url: `${CFG.gatewayUrl}/license`, timeout: 6000 });
+      const j = JSON.parse(r.responseText);
+      TRIAL = j;
+      PRO_ON = j.state !== 'expired';
+      paintLic(j);
+    } catch (e) {
+      paintLic(null);
+    }
+  }
+
+  $('lic-btn').onclick = async () => {
+    const key = ($('lic-input').value || '').trim();
+    if (!key) { bubble('a', '先把许可证粘进去。'); return; }
+    $('lic-btn').textContent = '验证中…';
+    try {
+      const r = await gm({
+        method: 'POST', url: `${CFG.gatewayUrl}/license`,
+        headers: { 'Content-Type': 'application/json' }, data: JSON.stringify({ key }), timeout: 20000,
+      });
+      const j = JSON.parse(r.responseText);
+      if (!j.ok) throw new Error(j.error || '激活失败');
+      TRIAL = j.trial; PRO_ON = true;
+      paintLic(j.trial);
+      bubble('a', '激活成功，谢谢。' + (j.email ? '（' + j.email + '）' : ''));
+      $('lic-btn').textContent = '已激活';
+    } catch (e) {
+      $('lic-btn').textContent = '激活';
+      bubble('a', '激活失败：' + e.message);
+    }
+  };
   // 免费版：隐藏所有依赖本地网关、以及多 key 的入口
   if (!IS_PRO) {
     ['memlist', 'memobtn', 'searchbtn'].forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
@@ -1814,7 +1879,7 @@
         });
         history.push({ role: 'assistant', content: answer });
         // 对话即记：这一轮问了什么、谁答的、答了什么，都进本机记忆
-        if (IS_PRO && MEMORY_ON) {
+        if (PRO_ON && MEMORY_ON) {
           gm({
             method: 'POST',
             url: `${CFG.gatewayUrl}/memory/chat`,
