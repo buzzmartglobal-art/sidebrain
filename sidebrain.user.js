@@ -719,7 +719,22 @@
   host.id = '__cola_ai_host__';
   host.style.cssText = 'all:initial;position:fixed;inset:0 auto 0 auto;right:0;z-index:2147483647;pointer-events:none;';
   const root = host.attachShadow({ mode: 'open' });
-  (document.documentElement || document.body).appendChild(host);
+  // 有些扩展（比如 iOS 的 Userscripts）会在文档还没建好时就注入，这时
+  // documentElement / body 都还是 null，直接 append 会抛 TypeError、整个脚本就死了。
+  (function mountHost() {
+    const parent = document.documentElement || document.body;
+    if (parent) { parent.appendChild(host); return; }
+    let tries = 0;
+    const timer = setInterval(() => {
+      const p = document.documentElement || document.body;
+      if (p) { p.appendChild(host); clearInterval(timer); }
+      else if (++tries > 600) clearInterval(timer);   // 最多等 12 秒
+    }, 20);
+    document.addEventListener('DOMContentLoaded', () => {
+      const p = document.documentElement || document.body;
+      if (p && !host.isConnected) p.appendChild(host);
+    }, { once: true });
+  })();
 
   root.innerHTML = `
 <style>
