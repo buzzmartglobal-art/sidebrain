@@ -814,6 +814,7 @@
         (ACCT ? (ACCT.plan === 'active' ? T.acctActive : T.acctTrial + ' · ' + (left != null ? left + ' ' + T.days : '')) : '') + '</span></div></div>' +
       '<div class="sec">分享进来</div>' +
       '<div class="rowitem" id="mSpriteLive"><div class="t"><b>✦ ' + T.spriteLive + '</b><span>' + T.spriteLiveTip + '</span></div><div class="k">' + T.spriteNew + ' ›</div></div>' +
+      '<div class="rowitem" id="mSpriteCheck"><div class="t"><b>🔎 ' + (EN ? 'Self-check' : '自检') + '</b><span>' + (EN ? 'Installed the sprite but nothing shows up on pages? Run the checks.' : '装好了但网页上没反应？逐项检查，红在哪修哪') + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mSpriteApp"><div class="t"><b>✦ ' + T.spriteApp + '</b><span>' + T.spriteAppTip + '</span></div><div class="k">' + T.spriteNew + ' ›</div></div>' +
       '<div class="rowitem" id="mSpriteDl"><div class="t"><b>⬇ ' + T.spriteDl + '</b><span>' + T.spriteDlTip + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mSpriteCode"><div class="t"><b>🔖 ' + T.spriteCode + '</b><span>' + T.spriteCodeTip + '</span></div><div class="k">›</div></div>' +
@@ -837,6 +838,12 @@
       // 装一次就常驻：说明页里有 App Store 链接、开启扩展的步骤、以及带连接码的安装按钮
       const w = window.open(b + '/u/' + encodeURIComponent(store.k), '_blank');
       if (!w) location.href = b + '/u/' + encodeURIComponent(store.k);
+    };
+    $('#mSpriteCheck').onclick = async () => {
+      const b = await ensureBase();
+      const url = b + '/u/' + encodeURIComponent(store.k) + '/check';
+      const w = window.open(url, '_blank');
+      if (!w) location.href = url;
     };
     $('#mSpriteApp').onclick = async () => {
       const b = await ensureBase();

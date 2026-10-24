@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>手机上怎么装 Sidebrain</title>
+<meta name="theme-color" content="#0d0f13">
+<style>
+:root{--bg:#0d0f13;--card:#14171c;--line:#262b33;--fg:#e8ebf0;--dim:#8b93a1;--accent:#5b8cff;--accent2:#8b5cf6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.68 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",system-ui,sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:760px;margin:0 auto;padding:30px 18px 80px}
+a{color:#9dbaff}
+h1{font-size:29px;line-height:1.22;margin:0 0 8px;letter-spacing:-.5px}
+.lead{color:var(--dim);font-size:16px;margin:0 0 26px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;margin:0 0 16px}
+.card h2{font-size:19px;margin:0 0 2px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.tag{font-size:11.5px;font-weight:500;padding:2px 9px;border-radius:20px;letter-spacing:.2px}
+.t-a{color:#9fe6c4;background:rgba(56,211,159,.12);border:1px solid rgba(56,211,159,.28)}
+.t-b{color:#c9d7ff;background:rgba(91,140,255,.14);border:1px solid rgba(91,140,255,.3)}
+.card p{margin:8px 0 14px;color:#c3cad6;font-size:15px}
+ol{margin:0;padding-left:22px;color:#c3cad6;font-size:15px}
+ol li{margin:11px 0}
+b{color:#fff;font-weight:600}
+.url{display:block;background:#0a0c10;border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin:12px 0;
+     font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;word-break:break-all;color:#cfe0ff}
+.shot{border-radius:14px;border:1px solid var(--line);width:100%;display:block;margin:14px 0 4px}
+.cap{color:#7d8593;font-size:12.5px;text-align:center;margin:0 0 6px}
+.warn{background:rgba(255,190,80,.08);border:1px solid rgba(255,190,80,.25);border-radius:12px;padding:12px 14px;font-size:14px;color:#e8d9b8;margin:14px 0 0}
+details{margin:14px 0 0;border-top:1px solid var(--line);padding-top:12px}
+summary{cursor:pointer;color:#9dbaff;font-size:14.5px}
+details p{font-size:14px;margin:10px 0 0}
+.foot{color:#5f6773;font-size:13px;text-align:center;margin:34px 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>手机上怎么装 Sidebrain</h1>
+  <p class="lead">两条路，先选一条就行。<b>路线 A 三十秒能用</b>，路线 B 才需要装一次扩展（换来「任何网页上都有小精灵」）。</p>
+
+  <div class="card">
+    <h2>路线 A · 当 App 用 <span class="tag t-a">30 秒 · 推荐先走这条</span></h2>
+    <p>不装任何扩展，把它加到主屏幕，以后点图标就进，跟原生 App 一样全屏、暗色、带对话和笔记。</p>
+    <ol>
+      <li>用 <b>Safari</b> 打开下面这个网址（别用微信/其他浏览器打开）：
+        <span class="url">https://buzzmartglobal-art.github.io/sidebrain/m/</span></li>
+      <li>点底部中间的 <b>分享</b> 按钮（方框里一支向上箭头）</li>
+      <li>往下划，选 <b>添加到主屏幕</b> → 右上角 <b>添加</b></li>
+      <li>回桌面点那个新图标 → <b>输你的邮箱</b> → 就进去了（7 天免费，不用选模型）</li>
+    </ol>
+    <img class="shot" src="./img/mobile-chat.png" alt="手机版对话界面">
+    <p class="cap">进去以后是这样：底下打字、📎 传图传文件、🎤 说话</p>
+    <p>用的时候：<b>📎</b> 加图片或文件（截图、PDF、txt 都行）、<b>🎤</b> 直接说、顶栏 <b>🗒</b> 是笔记、右上 <b>⋯</b> 里全是设置。</p>
+  </div>
+
+  <div class="card">
+    <h2>路线 B · 每个网页都有小精灵 <span class="tag t-b">装一次 · 约 3 分钟</span></h2>
+    <p>想要「在别的网站上看文章时，右下角就有个球可以直接问、可以划词存进笔记」，就需要苹果允许的「插座」——Userscripts（免费开源，不上传任何数据）。</p>
+    <ol>
+      <li>App Store 搜 <b>Userscripts</b> 装上（作者 quoid，图标是个 <b>&lt;/&gt;</b>）</li>
+      <li><b>设置 → 应用 → Safari → 扩展 → Userscripts</b> → 打开开关；下面的网站权限选 <b>允许</b>（找不到就在设置顶部搜索框直接搜 Userscripts）</li>
+      <li>回到桌面那个 Sidebrain 图标，点右上 <b>⋯</b> → 第一行 <b>✦ 一键常驻：每个网页都有它（新）</b></li>
+      <li>它会打开一页说明，按按钮 <b>装到我的 Safari</b> → 弹出「安装脚本」面板 → 点 <b>Install</b></li>
+      <li>随便开个网页，右下角就有蓝紫药丸。点它问这一页，选中文字会冒「✦ 存进笔记」</li>
+    </ol>
+    <img class="shot" src="./img/mobile-menu.png" alt="手机版 ⋯ 菜单，第一行就是一键常驻">
+    <p class="cap">⋯ 菜单第一行就是「一键常驻」，点进去跟着做</p>
+    <img class="shot" src="./img/phone-sprite.png" alt="普通网页右下角的小精灵">
+    <p class="cap">装好之后，任何网页右下角都有它</p>
+    <div class="warn"><b>点了按钮只看到一堆代码、没弹「Install」？</b> 说明扩展刚打开还没吃上权限 —— 下拉刷新这一页，再点一次按钮。还是不行就走下面「备用」。</div>
+    <details>
+      <summary>备用：不弹安装面板，直接粘脚本</summary>
+      <p>在 ⋯ 菜单点 <b>⬇ 复制脚本（不装快捷指令时的备选）</b>，打开 Userscripts App → 右上 <b>+</b> → 把脚本粘进去 → 命名 <b>Sidebrain</b> → 存。回 Safari 随便开个网页就会生效。</p>
+    </details>
+    <details>
+      <summary>装好了但网页上什么都没有？点这里自检</summary>
+      <p>回到 ⋯ 菜单最下面点 <b>自检</b>（或手机版里点「装好了但没反应」），它会逐项告诉你：服务器通不通、连接码对不对、小精灵到底跑没跑起来、是不是扩展没开。红在哪一项就修哪一项。</p>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>常见卡点，就这三个</h2>
+    <ol>
+      <li><b>一定要用 Safari。</b>微信、Chrome、夸克里打开的网页版加不了主屏幕，扩展也不生效。</li>
+      <li><b>扩展权限要选「允许」而不是「询问」。</b>选询问的话每开一个网站都要手动点一次，等于没用。</li>
+      <li><b>旧脚本要删掉再装新的。</b>Userscripts App 里如果还留着旧版 Sidebrain，先长按删掉，再走一遍路线 B。</li>
+    </ol>
+  </div>
+
+  <p class="foot">Sidebrain · 手机和 Mac 用同一个邮箱就是同一个账号 · 笔记、截图都进同一个库</p>
+</div>
+</body>
+</html>
