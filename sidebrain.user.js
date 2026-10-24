@@ -26,6 +26,9 @@
 
   // ---------- 配置 ----------
   const DEFAULTS = {
+    hosted: true,                              // 默认走我们自己的服务器：用户不填 key、不选模型
+    sbToken: '',                               // 注册后由服务端发的一次性令牌
+    serverBase: 'http://127.0.0.1:8792',
     deepseekKey: '',
     openrouterKey: '',
     subChatGPT: false,
@@ -288,6 +291,105 @@
     const h = heuristicKind(text, lastContext);
     lastRoute = { kind: h, src: 'heuristic', ms: 0 };
     return lastRoute;
+  }
+
+  // ---------- 托管模式：请求只发给我们的服务器 ----------
+  const hostedOn = () => !!(CFG.hosted && CFG.sbToken);
+  const SERVER = () => (CFG.serverBase || DEFAULTS.serverBase).replace(/\/+$/, '');
+
+  function serverCall(pathname, { method = 'GET', body = null, timeout = 90000 } = {}) {
+    return gm({
+      method,
+      url: SERVER() + pathname,
+      headers: { 'Content-Type': 'application/json', 'bypass-tunnel-reminder': '1', ...(CFG.sbToken ? { Authorization: 'Bearer ' + CFG.sbToken } : {}) },
+      data: body ? JSON.stringify(body) : undefined,
+      timeout,
+    }).then(r => {
+      let j = {};
+      try { j = JSON.parse(r.responseText); } catch (_) {}
+      if (r.status >= 200 && r.status < 300) return j;
+      const e = new Error(j.error || ('HTTP ' + r.status));
+      e.status = r.status;
+      e.body = j;
+      throw e;
+    }, () => { throw new Error('连不上服务器（' + SERVER() + '）'); });
+  }
+
+  // 服务器地址：优先用说明文件里的（我们换地址时不用让用户重装）
+  async function resolveEndpoint() {
+    try {
+      const r = await gm({ url: 'https://buzzmartglobal-art.github.io/sidebrain/endpoint.json?t=' + Date.now(), method: 'GET', timeout: 6000 });
+      const j = JSON.parse(r.responseText);
+      if (j && j.serverBase) { CFG.serverBase = String(j.serverBase).replace(/\/+$/, ''); return true; }
+    } catch (_) {}
+    return false;
+  }
+
+  async function ensureAccount() {
+    if (CFG.sbToken) {
+      try { return await serverCall('/account'); }
+      catch (e) {
+        if (e.status === 401) return { plan: 'invalid', email: '' };   // 令牌失效：留着 token，让用户用邮箱重连
+        throw e;
+      }
+    }
+    return null;
+  }
+
+  // 设置页里的账号区：只有「连接 / 已连接 · 还剩几天 / 试用结束」
+  let ACCT = null;
+  function paintAcct() {
+    const st = $('acct-state'); if (!st) return;
+    const mail = $('acct-mail-row'), go = $('acct-go'), sub = $('acct-sub-row'), out = $('acct-out');
+    if (ACCT && ACCT.plan === 'invalid') {
+      st.innerHTML = LANG === 'zh'
+        ? '这台设备的登录失效了。<br><span style="opacity:.65">填回原来的邮箱就能接上，试用天数不变。</span>'
+        : 'Sign-in on this device expired.<br><span style="opacity:.65">Re-enter the same email to reconnect — trial days are kept.</span>';
+      if (mail) mail.style.display = 'flex';
+      if (go) { go.style.display = 'block'; go.textContent = LANG === 'zh' ? '用邮箱重新连接' : 'Reconnect with email'; }
+      if (sub) sub.style.display = 'none';
+      if (out) out.style.display = 'block';
+      return;
+    }
+    if (ACCT && ACCT.plan !== 'none') {
+      const zh = LANG === 'zh';
+      const text = ACCT.plan === 'active'
+        ? (zh ? `已订阅 ✓ · ${ACCT.email}` : `Subscribed ✓ · ${ACCT.email}`)
+        : ACCT.plan === 'trial'
+          ? (zh ? `免费试用中 · 还剩 ${ACCT.daysLeft} 天 · ${ACCT.email}` : `Free trial · ${ACCT.daysLeft} days left · ${ACCT.email}`)
+          : (zh ? `试用已结束 · ${ACCT.email}` : `Trial ended · ${ACCT.email}`);
+      st.innerHTML = text + (zh ? `<br><span style="opacity:.65">今天用了 ${ACCT.usedToday || 0} 次</span>` : `<br><span style="opacity:.65">${ACCT.usedToday || 0} today</span>`);
+      if (mail) mail.style.display = 'none';
+      if (go) go.style.display = 'none';
+      if (sub) sub.style.display = ACCT.plan === 'active' ? 'none' : 'flex';
+      if (out) out.style.display = 'block';
+    } else {
+      st.textContent = LANG === 'zh' ? '填个邮箱就能开始，7 天免费，不用信用卡、不用挑模型。' : 'Enter your email to start. 7 days free, no card, no model picking.';
+      if (mail) mail.style.display = 'flex';
+      if (go) { go.style.display = 'block'; go.textContent = LANG === 'zh' ? '开始 7 天免费试用' : 'Start the 7-day free trial'; }
+      if (sub) sub.style.display = 'none';
+      if (out) out.style.display = 'none';
+    }
+  }
+
+  async function refreshAcct() {
+    try {
+      ACCT = await ensureAccount();
+      if (ACCT) ACCT.plan = ACCT.plan || 'trial';
+    } catch (_) { ACCT = null; }
+    paintAcct();
+    // 顶栏：连上服务器之后就不让用户挑模型
+    const sel = $('model'), hm = $('hmode');
+    const adv = $('adv');
+    if (adv) adv.style.display = hostedOn() && ACCT ? 'none' : '';
+    if (hostedOn() && ACCT) {
+      sel.style.display = 'none';
+      hm.style.display = 'inline-block';
+      hm.textContent = ACCT.plan === 'active' ? '自动 · 已订阅' : ACCT.plan === 'trial' ? `自动 · 试用 ${ACCT.daysLeft} 天` : '自动 · 已过期';
+    } else {
+      sel.style.display = '';
+      hm.style.display = 'none';
+    }
   }
 
   async function decideChain(text) {
@@ -654,6 +756,15 @@
   .src a { color: #6fa8ff; text-decoration: none; }
   .src .fold { cursor: pointer; color: #8b95a7; text-decoration: underline dotted; }
   .composer { border-top: 1px solid #2a2e36; padding: 10px; display: flex; gap: 8px; align-items: flex-end; }
+  .cwrap { display: flex; align-items: flex-end; gap: 6px; width: 100%; }
+  .cbtn { flex: 0 0 auto; height: 34px; width: 34px; }
+  .att { display: none; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+  .att.on { display: flex; }
+  .att .chip { position: relative; display: flex; align-items: center; gap: 6px; background: #232830; border: 1px solid #333a45; border-radius: 8px; padding: 4px 6px; font-size: 11px; color: #b9c2d0; max-width: 100%; }
+  .att .chip img { width: 34px; height: 34px; object-fit: cover; border-radius: 5px; display: block; }
+  .att .chip .x { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; line-height: 14px; text-align: center; border-radius: 50%; background: #4a2222; border: 1px solid #7a3030; font-size: 10px; cursor: pointer; }
+  .att .chip .nm { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg .attimg { max-width: 180px; max-height: 140px; border-radius: 8px; display: block; margin-bottom: 4px; }
   textarea { flex: 1; resize: none; background: #1c2027; border: 1px solid #2f3540; border-radius: 8px; padding: 8px; max-height: 140px; min-height: 40px; outline: none; }
   textarea:focus { border-color: #4a6fa5; }
   .send { background: #3b6fd4; border: none; color: #fff; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
@@ -705,6 +816,7 @@
     <div class="grip" id="grip"></div>
     <div class="bar">
       <span class="t">AI</span>
+      <span id="hmode" style="display:none;font-size:12px;color:#93a0b5;padding:2px 8px;border:1px solid #333a45;border-radius:999px">自动</span>
       <select id="model">
         <option value="auto">自动 · 免费优先（0 元）</option>
         <option value="auto-b">自动 · 平衡（默认）</option>
@@ -729,6 +841,7 @@
         </optgroup>
       </select>
       <span style="flex:1"></span>
+      <button class="ico" id="mic" title="语音输入">🎤</button>
       <button class="ico" id="searchbtn" title="联网搜索（免费，走本地网关）">🔍</button>
       <button class="ico" id="memobtn" title="自动记住看过的网页（只存本机）">🧠</button>
       <button class="ico" id="memlist" title="记忆：看过哪些页（可删单条 / 一键清空）">🗂</button>
@@ -759,6 +872,19 @@
       </div>
     </div>
     <div class="settings" id="settings">
+      <div class="row" id="lang-row">
+        <label>界面语言 / Language</label>
+        <select id="set-lang" style="width:auto;min-width:140px"></select>
+      </div>
+      <div id="acct">
+        <div class="hint" id="acct-state">还没连上服务器。</div>
+        <div class="row" id="acct-mail-row"><label>邮箱（用来登录、找回和续费）</label><input id="acct-mail" type="email" placeholder="you@example.com"></div>
+        <button class="send" id="acct-go">开始 7 天免费试用</button>
+        <div class="row" id="acct-sub-row" style="display:none"><button class="send" id="acct-sub" style="background:#2f6fed">订阅 $8/月</button></div>
+        <button class="send" id="acct-out" style="display:none;background:#3a4048">断开这台设备</button>
+      </div>
+      <details id="adv" style="margin-top:10px">
+        <summary style="cursor:pointer;font-size:12px;color:#93a0b5">高级：自己带 key（不经过我们的服务器）</summary>
       <div class="hint"><b>至少填一个 key。</b>key 只存在本机（GM 存储），请求直连各家，不经过任何第三方。</div>
       <div class="row"><label>DeepSeek API key（默认主力，最便宜）</label><input id="k-deepseek" type="password" placeholder="sk-..."></div>
       <div class="row"><label>OpenRouter API key（Auto 自动挑模型 / 兜底）</label><input id="k-openrouter" type="password" placeholder="sk-or-..."></div>
@@ -796,6 +922,7 @@
       </div>
       <div id="ack" class="hint" style="display:none;border:1px solid #4a3a1a;background:#241d10;padding:8px;border-radius:8px"></div>
       <button class="send" id="save">保存</button>
+      </details>
       <details style="margin-top:4px" id="sc" class="pro-only">
         <summary style="cursor:pointer;font-size:12px;color:#8b95a7">通道自检（哪条通、哪条额度没了）</summary>
         <div class="hint" id="sc-out" style="margin-top:8px;line-height:1.9;font-family:ui-monospace,Menlo,monospace;opacity:.95">点下面按钮，逐条探一遍。</div>
@@ -830,8 +957,14 @@
     </div>
     <div class="msgs" id="msgs"></div>
     <div class="composer">
-      <textarea id="input" rows="1" placeholder="问点什么…（Enter 发送 / Shift+Enter 换行）"></textarea>
-      <button class="send" id="send">发送</button>
+      <div class="att" id="att"></div>
+      <div class="cwrap">
+        <button class="ico cbtn" id="filebtn" title="加图片或文件（也可以直接粘贴、拖进来）">📎</button>
+        <input type="file" id="filepick" accept="image/*,.txt,.md,.json,.csv,.log,.js,.ts,.py,.html,.css,.pdf" multiple style="display:none">
+        <textarea id="input" rows="1" placeholder="问点什么…（Enter 发送 / Shift+Enter 换行）"></textarea>
+        <button class="ico cbtn" id="mic2" title="语音输入">🎤</button>
+        <button class="send" id="send">发送</button>
+      </div>
     </div>
   </div>
   <button class="fab" id="fab" title="AI 侧边栏 (⌘⇧K)">✦</button>
@@ -839,7 +972,51 @@
 
 
   // ---------- 双语：跟着浏览器语言走（zh 中文，其它英文） ----------
-  const LANG = (navigator.language || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  // 界面语言：默认跟浏览器，用户可以在设置里改
+  const LANGS = [
+    ['zh', '中文'], ['en', 'English'], ['ja', '日本語'], ['ko', '한국어'], ['es', 'Español'],
+    ['fr', 'Français'], ['de', 'Deutsch'], ['pt', 'Português'], ['ru', 'Русский'], ['it', 'Italiano'],
+  ];
+  const SPEECH_LANG = { zh: 'zh-CN', en: 'en-US', ja: 'ja-JP', ko: 'ko-KR', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', pt: 'pt-BR', ru: 'ru-RU', it: 'it-IT' };
+  function guessLang() {
+    const n = (navigator.language || 'en').toLowerCase();
+    const two = n.slice(0, 2);
+    return LANGS.some(([c]) => c === two) ? two : 'en';
+  }
+  let LANG = guessLang();
+
+  // 多语言词典：以中文原文为键；没翻到的自动回落到英文，再回落到中文
+  const LK = ['设置', '发送', '关闭', '清空本页对话', '复制', '朗读', '有用', '没用', '更多',
+    '联网搜索', '自动记住看过的网页', '记忆', '问点什么…（Enter 发送 / Shift+Enter 换行）',
+    '开始 7 天免费试用', '用邮箱重新连接', '断开这台设备', '订阅 $8/月', '语音输入', '停止录音', '听不见声音'];
+  const LT = {
+    ja: ['設定', '送信', '閉じる', 'このタブの会話を消す', 'コピー', '読み上げ', '役に立った', '役に立たない', 'その他',
+      'ウェブ検索', '見たページを記憶', 'メモリー', '何でも聞いてください…（Enter で送信 / Shift+Enter で改行）',
+      '7 日間の無料トライアルを開始', 'メールで再接続', 'このデバイスを切断', '月額 $8 で購読', '音声入力', '録音を停止', '音が聞こえません'],
+    ko: ['설정', '보내기', '닫기', '이 탭의 대화 지우기', '복사', '읽기', '도움됨', '도움 안 됨', '더보기',
+      '웹 검색', '본 페이지 기억하기', '메모리', '무엇이든 물어보세요… (Enter 전송 / Shift+Enter 줄바꿈)',
+      '7일 무료 체험 시작', '이메일로 다시 연결', '이 기기 연결 해제', '월 $8 구독', '음성 입력', '녹음 중지', '소리가 들리지 않습니다'],
+    es: ['Ajustes', 'Enviar', 'Cerrar', 'Borrar esta pestaña', 'Copiar', 'Leer en voz alta', 'Útil', 'No útil', 'Más',
+      'Buscar en la web', 'Recordar páginas que leo', 'Memoria', 'Pregunta lo que quieras… (Enter envía, Shift+Enter salto de línea)',
+      'Empezar 7 días gratis', 'Reconectar con el correo', 'Desconectar este dispositivo', 'Suscribirme por $8/mes', 'Entrada de voz', 'Detener grabación', 'No se oye nada'],
+    fr: ['Réglages', 'Envoyer', 'Fermer', 'Effacer cet onglet', 'Copier', 'Lire à voix haute', 'Utile', 'Pas utile', 'Plus',
+      'Recherche web', 'Mémoriser les pages lues', 'Mémoire', "Posez votre question… (Entrée envoie, Maj+Entrée pour un saut de ligne)",
+      "Démarrer les 7 jours gratuits", "Reconnecter avec l'e-mail", 'Déconnecter cet appareil', "S'abonner à 8 $/mois", 'Saisie vocale', "Arrêter l'enregistrement", 'Je ne vous entends pas'],
+    de: ['Einstellungen', 'Senden', 'Schließen', 'Diesen Tab leeren', 'Kopieren', 'Vorlesen', 'Hilfreich', 'Nicht hilfreich', 'Mehr',
+      'Websuche', 'Gelesene Seiten merken', 'Gedächtnis', 'Frag einfach… (Enter sendet, Shift+Enter neue Zeile)',
+      '7 Tage kostenlos starten', 'Mit E-Mail neu verbinden', 'Dieses Gerät trennen', 'Für 8 $/Monat abonnieren', 'Spracheingabe', 'Aufnahme stoppen', 'Ich höre nichts'],
+    pt: ['Ajustes', 'Enviar', 'Fechar', 'Limpar esta aba', 'Copiar', 'Ler em voz alta', 'Útil', 'Não útil', 'Mais',
+      'Buscar na web', 'Lembrar páginas lidas', 'Memória', 'Pergunte o que quiser… (Enter envia, Shift+Enter nova linha)',
+      'Começar 7 dias grátis', 'Reconectar com o e-mail', 'Desconectar este dispositivo', 'Assinar por $8/mês', 'Entrada de voz', 'Parar gravação', 'Não estou ouvindo'],
+    ru: ['Настройки', 'Отправить', 'Закрыть', 'Очистить эту вкладку', 'Копировать', 'Прочитать', 'Полезно', 'Бесполезно', 'Ещё',
+      'Поиск в сети', 'Запоминать прочитанные страницы', 'Память', 'Спросите что угодно… (Enter — отправить, Shift+Enter — новая строка)',
+      'Начать 7 бесплатных дней', 'Подключиться по e-mail', 'Отключить это устройство', 'Подписка $8/мес', 'Голосовой ввод', 'Остановить запись', 'Вас не слышно'],
+    it: ['Impostazioni', 'Invia', 'Chiudi', 'Svuota questa scheda', 'Copia', 'Leggi ad alta voce', 'Utile', 'Non utile', 'Altro',
+      'Ricerca web', 'Ricorda le pagine lette', 'Memoria', 'Chiedi quello che vuoi… (Invio invia, Shift+Invio nuova riga)',
+      'Inizia i 7 giorni gratis', 'Riconnetti con la email', 'Scollega questo dispositivo', 'Abbonati a 8 $/mese', 'Input vocale', 'Ferma registrazione', 'Non ti sento'],
+  };
+  const LDICT = {};
+  for (const code of Object.keys(LT)) LDICT[code] = Object.fromEntries(LK.map((k, i) => [k, LT[code][i]]));
   const EN = {
     // 顶栏 / 基础
     '设置': 'Settings', '发送': 'Send', '关闭': 'Close', '收起 (⌘⇧K)': 'Hide (⌘⇧K)',
@@ -914,9 +1091,19 @@
   };
   // 英文环境下把静态界面翻一遍（动态文本在调用处过 tr()）
   function tr(t) {
-    if (LANG !== 'en' || !t) return t;
+    if (LANG === 'zh' || !t) return t;
     const s = String(t).trim();
-    if (EN[s]) return EN[s];
+    const dict = LANG === 'en' ? EN : (LDICT[LANG] || {});
+    if (dict[s]) return dict[s];
+    if (LANG !== 'en') {
+      // 其它语言只翻了核心几条：整句命中不了就退回英文，不留中文
+      if (EN[s]) return EN[s];
+      let out2 = String(t);
+      for (const k of Object.keys(dict)) {
+        if (k.length >= 3 && out2.includes(k)) out2 = out2.split(k).join(dict[k]);
+      }
+      if (out2 !== t) return out2;
+    }
     let out = t;
     for (const k of Object.keys(EN)) {
       if (k.length >= 3 && out.includes(k)) out = out.split(k).join(EN[k]);
@@ -924,7 +1111,7 @@
     return out;
   }
   function translateTree(node) {
-    if (LANG !== 'en') return;
+    if (LANG === 'zh') return;
     const walk = el => {
       for (const n of el.childNodes) {
         if (n.nodeType === 3) {
@@ -946,6 +1133,11 @@
   }
 
   translateTree(root);
+  {
+    const _in = root.getElementById('input'), _sb = root.getElementById('send');
+    if (_in) _in.setAttribute('placeholder', tr('问点什么…（Enter 发送 / Shift+Enter 换行）'));
+    if (_sb && LANG !== 'zh') _sb.textContent = tr('发送');
+  }
   const $ = id => root.getElementById(id);
   const panel = $('panel'), msgs = $('msgs'), input = $('input'), sendBtn = $('send'), fab = $('fab');
 
@@ -1014,7 +1206,11 @@
     if (/openrouter/i.test(id)) return (tin / 1e6) * 1 + (tout / 1e6) * 3;
     return 0;
   }
-  const money = v => (v <= 0 ? '¥0' : v < 0.01 ? '¥' + v.toFixed(4) : '¥' + v.toFixed(2));
+  const money = v => {
+    if (typeof v === 'string') return v;            // 托管模式：服务器不暴露单价
+    if (!Number.isFinite(v) || v <= 0) return '¥0';
+    return v < 0.01 ? '¥' + v.toFixed(4) : '¥' + v.toFixed(2);
+  };
 
   // ---------- 反馈闭环：👍/👎 直接改下一次的通道排序 ----------
   // 存本地：votes["kind|channel"] = {up, down, reasons:[]}
@@ -1241,7 +1437,7 @@
       `${L2.ctx}　${L2.page} ${Math.round((lastContext || '').length / 100) / 10}k ${L2.chars}` +
         (meta.sources && meta.sources.length ? ` · ${L2.inj} ${meta.sources.length}` : '') +
         (meta.searchNote ? ` · ${meta.searchNote}` : ''),
-      `${L2.cost}　${money(meta.cost)}${meta.cost > 0 ? ' ' + L2.approx : meta.why || ''}`,
+      `${L2.cost}　${money(meta.cost)}${typeof meta.cost === 'number' && meta.cost > 0 ? ' ' + L2.approx : ''}`,
     ];
     if (meta.chain && meta.chain.length > 1) lines.push(`${L2.chain}　${meta.chain.join(' → ')}`);
     if (meta.why) lines.push(`${L2.why}　${meta.why}`);
@@ -1322,16 +1518,18 @@
   }
   // 第一次用（一个 key 都没填）就把设置打开，并告诉他要做什么
   const hasAnyKey = () => !!(CFG.deepseekKey || CFG.geminiKey || CFG.groqKey || CFG.openrouterKey || CFG.anthropicKey);
-  const FIRST_RUN = !hasAnyKey();
-  if (FIRST_RUN) {
+  // 第一次用：托管模式只让他填一个邮箱；自己带 key 的老用户不打扰
+  if (CFG.hosted && !CFG.sbToken) {
     setTimeout(() => {
       $('settings').classList.add('on');
       bubble('a', LANG === 'zh'
-        ? '第一次用，三步就能跑起来：\n\n1. 去 aistudio.google.com/apikey 拿一把免费的 Gemini key（不用绑卡）\n2. 粘到下面「Gemini API key」那一行\n3. 点保存，然后随便问一句\n\n想用别的模型也行，填对应的 key 就好；Pro 会自动帮你选最省的那条。'
-        : 'First run — three steps:\n\n1. Get a free Gemini key at aistudio.google.com/apikey (no card needed)\n2. Paste it into the "Gemini API key" field below\n3. Save, then ask anything\n\nAny other provider works too — paste its key and Pro will route to whatever is cheapest.');
+        ? '第一次用，只有一步：**填个邮箱**，7 天免费就开了。\n\n不用信用卡，不用挑模型，不用申请任何 key —— 用哪家模型由服务器决定，坏了自己往下切。'
+        : 'One step to start: **enter your email** and the 7-day trial opens.\n\nNo card, no model picking, no API keys. The server chooses the model and falls back on its own if one breaks.');
     }, 900);
   }
   setTimeout(refreshTrial, 600);
+  bindAttach();
+  resolveEndpoint().finally(() => setTimeout(refreshAcct, 300));
   setTimeout(autoCapture, 4000);
   let lastHref = location.href;
   setInterval(() => {
@@ -1777,6 +1975,212 @@
   $('sc-run').onclick = () => probeAll(false);
   $('sc-sub').onclick = () => probeAll(true);
 
+  // ---------- 界面语言 ----------
+  const langSel = $('set-lang');
+  if (langSel) {
+    langSel.innerHTML = LANGS.map(([c, n]) => `<option value="${c}">${n}</option>`).join('');
+    langSel.value = LANG;
+    langSel.addEventListener('change', async () => {
+      LANG = langSel.value;
+      CFG.lang = LANG;
+      await GM.setValue('cfg', CFG);
+      // 静态文案整体重翻一遍，再修掉动态的几处
+      try { translateTree(root); } catch (_) {}
+      input.setAttribute('placeholder', tr('问点什么…（Enter 发送 / Shift+Enter 换行）'));
+      paintAcct();
+      await refreshAcct();
+    });
+  }
+
+  // ---------- 语音输入（浏览器自带识别，不上传第三方） ----------
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtns = ['mic2', 'mic'].map(id => $(id)).filter(Boolean);
+  let recog = null, listening = false;
+  micBtns.forEach(micBtn => {
+  if (SR) {
+    micBtn.addEventListener('click', () => {
+      if (listening) { try { recog && recog.stop(); } catch (_) {} return; }
+      recog = new SR();
+      recog.lang = SPEECH_LANG[LANG] || 'en-US';
+      recog.interimResults = true;
+      recog.continuous = false;
+      const before = input.value.trim();
+      let finalText = '';
+      recog.onstart = () => { listening = true; micBtn.textContent = '⏺'; micBtn.style.color = '#ff6b6b'; };
+      recog.onresult = ev => {
+        let interim = '';
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          const r = ev.results[i];
+          if (r.isFinal) finalText += r[0].transcript;
+          else interim += r[0].transcript;
+        }
+        input.value = (before ? before + ' ' : '') + finalText + interim;
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+      };
+      recog.onerror = e => {
+        listening = false; micBtn.textContent = '🎤'; micBtn.style.color = '';
+        if (e.error === 'not-allowed') bubble('a', LANG === 'zh' ? '麦克风没权限：Safari 设置 → 网站 → 麦克风，允许这个站点。' : 'Microphone blocked. Safari Settings → Websites → Microphone → allow this site.');
+        else if (e.error === 'no-speech') bubble('a', tr('听不见声音') + ' — ' + (LANG === 'zh' ? '再点一次 🎤 重新说。' : 'click 🎤 and try again.'));
+      };
+      recog.onend = () => {
+        listening = false; micBtn.textContent = '🎤'; micBtn.style.color = '';
+        if (input.value.trim()) input.focus();
+      };
+      try { recog.start(); } catch (_) { listening = false; }
+    });
+  } else {
+    micBtn.style.opacity = '.35';
+    micBtn.title = LANG === 'zh' ? '这个浏览器不支持语音识别' : 'This browser has no speech recognition';
+  }
+  });
+
+  // ---------- 附件：图片 / 文本文件（粘贴、拖拽、选文件三条路都通） ----------
+  const ATT = { image: null, files: [] };   // image: {dataUrl, mime}; files: [{name, text}]
+  const TEXT_EXT = /\.(txt|md|markdown|json|jsonl|csv|tsv|log|js|mjs|ts|tsx|jsx|py|rb|go|rs|java|c|h|cpp|css|html|xml|yml|yaml|sh|toml|ini)$/i;
+  const MAX_TEXT = 60000;
+
+  function paintAtt() {
+    const box = $('att');
+    if (!box) return;
+    box.innerHTML = '';
+    if (ATT.image) {
+      const c = document.createElement('div');
+      c.className = 'chip';
+      const im = document.createElement('img');
+      im.src = ATT.image.dataUrl;
+      c.appendChild(im);
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = '图片';
+      c.appendChild(nm);
+      const x = document.createElement('span'); x.className = 'x'; x.textContent = '✕';
+      x.onclick = () => { ATT.image = null; paintAtt(); };
+      c.appendChild(x);
+      box.appendChild(c);
+    }
+    ATT.files.forEach((f, i) => {
+      const c = document.createElement('div');
+      c.className = 'chip';
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = f.name;
+      c.appendChild(nm);
+      const x = document.createElement('span'); x.className = 'x'; x.textContent = '✕';
+      x.onclick = () => { ATT.files.splice(i, 1); paintAtt(); };
+      c.appendChild(x);
+      box.appendChild(c);
+    });
+    box.classList.toggle('on', !!(ATT.image || ATT.files.length));
+  }
+
+  // 大图先缩一下：手机上截的图动辄 4MB，直接送会又慢又贵
+  function shrinkImage(dataUrl, mime, cb) {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1400;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      if (scale >= 1 && dataUrl.length < 900000) return cb(dataUrl);
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * scale);
+      cv.height = Math.round(img.height * scale);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      try { cb(cv.toDataURL(mime === 'image/png' ? 'image/png' : 'image/jpeg', 0.85)); } catch (_) { cb(dataUrl); }
+    };
+    img.onerror = () => cb(dataUrl);
+    img.src = dataUrl;
+  }
+
+  function takeFile(file) {
+    if (!file) return;
+    if (/^image\//.test(file.type)) {
+      const fr = new FileReader();
+      fr.onload = () => {
+        shrinkImage(String(fr.result), file.type, out => {
+          const m = /^data:([^;]+);/.exec(out) || [];
+          ATT.image = { dataUrl: out, mime: m[1] || file.type || 'image/png' };
+          paintAtt();
+        });
+      };
+      fr.readAsDataURL(file);
+      return;
+    }
+    if (TEXT_EXT.test(file.name) || /^text\//.test(file.type) || /json/.test(file.type)) {
+      const fr = new FileReader();
+      fr.onload = () => {
+        let txt = String(fr.result);
+        const cut = txt.length > MAX_TEXT;
+        if (cut) txt = txt.slice(0, MAX_TEXT);
+        ATT.files.push({ name: file.name + (cut ? '（截到 6 万字符）' : ''), text: txt });
+        paintAtt();
+      };
+      fr.readAsText(file);
+      return;
+    }
+    bubble('a', LANG === 'zh'
+      ? '这个文件类型我读不了（PDF 里是排版不是文字）。图片、文本、代码、CSV、JSON 都可以；PDF 的话截个图给我更快。'
+      : "I can't read that format (PDFs are layout, not text). Images, text, code, CSV and JSON work — screenshot the PDF instead.");
+  }
+
+  function bindAttach() {
+    const pick = $('filepick'), btn = $('filebtn');
+    if (btn && pick) {
+      btn.onclick = () => pick.click();
+      pick.onchange = () => { [...pick.files].forEach(takeFile); pick.value = ''; };
+    }
+    input.addEventListener('paste', e => {
+      const items = [...((e.clipboardData && e.clipboardData.items) || [])];
+      const img = items.find(i => i.kind === 'file' && /^image\//.test(i.type));
+      const txt = items.find(i => i.kind === 'file' && (TEXT_EXT.test(i.type) || /text/.test(i.type)));
+      if (img) { e.preventDefault(); takeFile(img.getAsFile()); }
+      else if (txt) { e.preventDefault(); takeFile(txt.getAsFile()); }
+    });
+    const panel = $('panel');
+    panel.addEventListener('dragover', e => { e.preventDefault(); });
+    panel.addEventListener('drop', e => {
+      const files = [...((e.dataTransfer && e.dataTransfer.files) || [])];
+      if (!files.length) return;
+      e.preventDefault();
+      files.forEach(takeFile);
+    });
+  }
+
+  // ---------- 账号：注册 / 订阅 / 断开 ----------
+  const acctGo = $('acct-go');
+  if (acctGo) acctGo.addEventListener('click', async () => {
+    const mail = ($('acct-mail').value || '').trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { $('acct-state').textContent = LANG === 'zh' ? '邮箱看起来不对，再检查一下。' : 'That email looks off — check it again.'; return; }
+    acctGo.disabled = true;
+    $('acct-state').textContent = LANG === 'zh' ? '正在开通…' : 'Setting up…';
+    try {
+      const r = await serverCall('/account/signup', { method: 'POST', body: { email: mail } });
+      CFG.sbToken = r.token; CFG.hosted = true;
+      await GM.setValue('sbToken', r.token);
+      await GM.setValue('hosted', true);
+      await GM.setValue('acctEmail', mail);
+      ACCT = r;
+      await refreshAcct();
+      $('settings').classList.remove('on');
+      bubble('a', LANG === 'zh'
+        ? `好了，7 天免费试用已经开通（到 ${String(r.trialEndsAt).slice(0, 10)}）。\n\n直接问就行 —— 用哪个模型不用你管，服务器会挑当下最省、够用的那条。`
+        : `You're in — 7-day trial active until ${String(r.trialEndsAt).slice(0, 10)}.\n\nJust ask. You don't pick a model; the server picks the cheapest one that's good enough.`);
+    } catch (e) {
+      $('acct-state').textContent = (LANG === 'zh' ? '没开通成功：' : 'Failed: ') + (e.message || e);
+    } finally { acctGo.disabled = false; }
+  });
+
+  const acctSub = $('acct-sub');
+  if (acctSub) acctSub.addEventListener('click', () => {
+    bubble('a', LANG === 'zh'
+      ? '订阅页还在搭（Stripe 还没接）。这段时间试用可以续，直接回我一句「续试用」就行。'
+      : "The subscribe page isn't up yet (Stripe pending). For now trials can be extended — just ask.");
+  });
+
+  const acctOut = $('acct-out');
+  if (acctOut) acctOut.addEventListener('click', async () => {
+    CFG.sbToken = '';
+    await GM.setValue('sbToken', '');
+    ACCT = null;
+    await refreshAcct();
+    bubble('a', LANG === 'zh' ? '这台设备断开了。要再连回来，填回原来的邮箱就行。' : 'Disconnected. Re-enter the same email to reconnect.');
+  });
+
   $('save').onclick = async () => {
     CFG.deepseekKey = $('k-deepseek').value.trim();
     CFG.openrouterKey = $('k-openrouter').value.trim();
@@ -1808,7 +2212,9 @@
   async function send() {
     if (busy) return;
     let text = input.value.trim();
-    if (!text) return;
+    const hasAtt = !!(ATT.image || ATT.files.length);
+    if (!text && !hasAtt) return;
+    if (!text && hasAtt) text = ATT.image ? '看看这张图，说说看到什么、有什么要注意的。' : '看看这个文件，说说写了什么、有什么问题。';
     const forceSearch = /^\/(s|search)\s+/i.test(text);
     if (forceSearch) text = text.replace(/^\/(s|search)\s+/i, '').trim();
     if (!text) return;
@@ -1829,7 +2235,25 @@
     input.value = '';
     input.style.height = 'auto';
     $('settings').classList.remove('on');
-    bubble('u', text);
+    const ub = bubble('u', text);
+    if (ATT.image) {
+      const im = document.createElement('img');
+      im.className = 'attimg';
+      im.src = ATT.image.dataUrl;
+      ub.insertBefore(im, ub.firstChild);
+    }
+    ATT.files.forEach(f => {
+      const t = document.createElement('div');
+      t.className = 'tag';
+      t.textContent = '📄 ' + f.name;
+      ub.appendChild(t);
+    });
+    const sentImage = ATT.image ? { dataUrl: ATT.image.dataUrl, mime: ATT.image.mime } : null;
+    const sentFiles = ATT.files.slice();
+    ATT.image = null; ATT.files = []; paintAtt();
+    if (sentFiles.length) {
+      text += '\n\n' + sentFiles.map(f => `<附件 文件名="${f.name}">\n${f.text}\n</附件>`).join('\n');
+    }
     history.push({ role: 'user', content: text });
 
     const b = bubble('a', '…');
@@ -1849,7 +2273,7 @@
       const notes = [];
 
       // ① 本地 Obsidian 笔记库（只读，约 120ms）——每轮都查
-      if (SEARCH_ON) {
+      if (SEARCH_ON && !hostedOn()) {
         try {
           const nr = await gm({
             method: 'POST',
@@ -1932,8 +2356,70 @@
       }
       searchNote = notes.join(' · ');
 
-      let chainList;
+      let chainList = [];
       const autoMode = ['auto', 'auto-s', 'auto-q', 'auto-b', 'gateway'].includes(MODEL_CHOICE);
+
+      // === 托管模式：全部交给服务器，客户端不碰任何 key ===
+      if (hostedOn()) {
+        b.innerHTML = '<span style="opacity:.5">思考中…</span>';
+        const ctxMsgs = history.slice(-HISTORY_TURNS * 2).filter(m => m.content);
+        const page = { title: document.title || '', text: (lastContext || '').slice(0, 6000) };
+        let r;
+        try {
+          r = await serverCall('/v1/chat', {
+            method: 'POST',
+            body: {
+              messages: ctxMsgs.map(m => ({ role: m.role, content: m.content })),
+              image: sentImage,
+              page,
+              system: getSystem() + (searchBlock ? '\n\n' + searchBlock : ''),
+            },
+          });
+        } catch (e) {
+          b.className = 'm err';
+          if (e.status === 402) {
+            b.innerHTML = md('免费试用结束了。\n\n继续用需要订阅（$8/月，也可以先申请延长试用）：\n[点这里订阅](https://buzzmartglobal-art.github.io/sidebrain/join)');
+            const t = document.createElement('div');
+            t.className = 'tag';
+            t.textContent = '试用已结束';
+            b.appendChild(t);
+          } else if (e.status === 429) {
+            b.innerHTML = md('今天的免费额度用完了，明天零点恢复。\n\n急用的话可以等一会儿再试，或者自己填一个 key（设置 → 高级）。');
+          } else if (e.status === 401) {
+            b.innerHTML = md('这个设备的登录失效了。\n\n点 ⚙︎ → 「用邮箱重新连接」。');
+          } else {
+            b.textContent = '出错：' + (e.message || e);
+          }
+          return;
+        }
+        answer = r.text || '';
+        used = { p: r.channel || 'server', m: r.model || '', why: '服务器自动选（' + (r.tier === 'free' ? '免费额度' : r.tier === 'paid' ? '付费兜底' : '本机') + '）' };
+        route = { kind: r.kind || 'simple', level: r.level || 2, src: 'server', ms: 0 };
+        chainList = (r.tried || []).map(t => ({ m: t.label }));
+        b.innerHTML = md(answer || '(空回复)');
+        const tag0 = document.createElement('div');
+        tag0.className = 'tag';
+        tag0.textContent = `${r.channel || '服务器'} · ${r.model || ''}${searchNote ? ' · ' + searchNote : ''}`;
+        b.appendChild(tag0);
+        addFooter(b, {
+          q: text, text: answer, channel: r.channel || 'server', model: r.model || '',
+          why: used.why, kind: route.kind, level: route.level, routeSrc: 'server', routeMs: null,
+          ms: Date.now() - t0, sources, searchNote, cost: '—',
+          chain: [r.channel || 'server', ...(r.tried || []).map(x => x.label)],
+        });
+        history.push({ role: 'assistant', content: answer });
+        if (PRO_ON && MEMORY_ON) {
+          gm({
+            method: 'POST',
+            url: `${CFG.gatewayUrl}/memory/chat`,
+            headers: { 'Content-Type': 'application/json' },
+            data: JSON.stringify({ q: text, a: answer, url: location.href, title: document.title || '', channel: `${r.channel} · ${r.model}`, kind: route.kind, level: route.level, ms: Date.now() - t0 }),
+            timeout: 12000,
+          }).catch(() => {});
+        }
+        return;
+      }
+
       if (autoMode) {
         const decided = await decideChain(text);
         route = decided.route;
@@ -2047,6 +2533,10 @@
           if ((CFG[k] === '' || CFG[k] == null) && DEFAULTS[k] !== '') CFG[k] = DEFAULTS[k];
         }
       }
+      if (saved && saved.lang && saved.lang !== LANG && LANGS.some(([c]) => c === saved.lang)) LANG = saved.lang;
+      // 托管模式的登录令牌单独存（不随 cfg 一起被覆盖）
+      const tk = await GM.getValue('sbToken', '');
+      if (tk) CFG.sbToken = tk;
       const m = await GM.getValue('model', 'auto');
       MODEL_CHOICE = m || 'auto-b';
       if (MODEL_CHOICE === 'gateway' || MODEL_CHOICE === 'auto') MODEL_CHOICE = 'auto-b'; // 旧默认并入平衡档
