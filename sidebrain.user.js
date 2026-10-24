@@ -2,7 +2,7 @@
 // @name         Safari AI Sidebar（自用）
 // @description  网页右侧 AI 侧边栏：自带 key 跑 DeepSeek / OpenRouter / Gemini / Anthropic，按任务自动挑最省钱且够用的模型
 // @namespace    cola.local
-// @version      1.4.0
+// @version      1.5.0
 // @edition      free
 // @match        *://*/*
 // @grant        GM.xmlHttpRequest
@@ -784,6 +784,21 @@
   .mob .bar { padding: 15px 12px 10px; }
   .mob .composer { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
   .mob .msgs { padding-bottom: 4px; }
+  /* 首次使用：从书签/快捷指令注入时，没有账号就先问一个邮箱 */
+  .gate { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center;
+          background: rgba(6,8,12,.55); backdrop-filter: blur(6px); padding: 18px; }
+  .gcard { width: 100%; max-width: 340px; background: #14171d; border: 1px solid #2b3038; border-radius: 16px;
+           padding: 20px 18px 14px; box-shadow: 0 24px 60px rgba(0,0,0,.5); }
+  .gbrand { font-size: 15px; font-weight: 650; letter-spacing: .02em; color: #e8ecf3; }
+  .gsub { font-size: 12.5px; color: #8b94a3; margin: 6px 0 14px; line-height: 1.5; }
+  .gcard input { width: 100%; box-sizing: border-box; background: #0e1116; border: 1px solid #2b3038; color: #e8ecf3;
+                 border-radius: 10px; padding: 11px 12px; font-size: 15px; outline: none; }
+  .gcard input:focus { border-color: #4a76e8; }
+  .gcard button { width: 100%; margin-top: 10px; background: #3358d4; color: #fff; border: 0; border-radius: 10px;
+                  padding: 11px; font-size: 14.5px; font-weight: 600; cursor: pointer; }
+  .gcard button:disabled { opacity: .6; }
+  .gnote { font-size: 11.5px; color: #6d7686; margin-top: 10px; line-height: 1.45; }
+  .gx { text-align: center; font-size: 12px; color: #6d7686; margin-top: 12px; cursor: pointer; padding: 4px; }
   .mob #msgs { font-size: 14.5px; }
   .mob .row textarea, .mob textarea { font-size: 15.5px; }
   .mob .fab { width: 54px; height: 54px; border-radius: 50%; color: #fff; border: 0;
@@ -3010,6 +3025,51 @@
     }
   }
 
+  // ---------- 首次使用：书签 / 快捷指令注入，没有账号就先问一个邮箱 ----------
+  function firstRunGate() {
+    if (root.getElementById('gate')) return;
+    const zh = LANG === 'zh';
+    const g = document.createElement('div');
+    g.className = 'gate';
+    g.id = 'gate';
+    g.innerHTML = `<div class="gcard">
+        <div class="gbrand">✦ Sidebrain</div>
+        <div class="gsub">${zh ? '输个邮箱就能用 · 7 天免费 · 不用装任何扩展' : 'Enter an email to start · 7 days free · nothing to install'}</div>
+        <input id="gmail" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com">
+        <button id="ggo">${zh ? '开始用' : 'Start'}</button>
+        <div class="gnote" id="gnote">${zh ? '以前用过的填同一个邮箱 —— 账号、笔记、试用天数都会接上。' : 'Used it before? Same email — account, notes and trial days come back.'}</div>
+        <div class="gx" id="gx">${zh ? '先不用，只是看看' : 'Not now'}</div>
+      </div>`;
+    root.appendChild(g);
+    const mail = g.querySelector('#gmail'), go = g.querySelector('#ggo'), note = g.querySelector('#gnote');
+    g.querySelector('#gx').onclick = () => g.remove();
+    const run = async () => {
+      const v = (mail.value || '').trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { note.textContent = zh ? '邮箱看起来不对，再检查一下。' : 'That email looks off — check it again.'; mail.focus(); return; }
+      go.disabled = true; note.textContent = zh ? '正在开通…' : 'Setting up…';
+      try {
+        const r = await serverCall('/account/signup', { method: 'POST', body: { email: v } });
+        CFG.sbToken = r.token; CFG.hosted = true;
+        await GM.setValue('sbToken', r.token);
+        await GM.setValue('hosted', true);
+        await GM.setValue('acctEmail', v);
+        ACCT = r;
+        g.remove();
+        await refreshAcct();
+        openPanel();
+        bubble('a', zh
+          ? `好了，${String(r.trialEndsAt).slice(0, 10)} 之前都免费。\n\n直接问 —— 用哪个模型不用你挑。看完就走，笔记自动留在库里。`
+          : `You're in — free until ${String(r.trialEndsAt).slice(0, 10)}.\n\nJust ask. You don't pick a model, and every answer is filed into your notes.`);
+      } catch (e) {
+        go.disabled = false;
+        note.textContent = (zh ? '没连上：' : 'Failed: ') + (e.message || e);
+      }
+    };
+    go.onclick = run;
+    mail.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+    setTimeout(() => { try { mail.focus(); } catch (_) {} }, 120);
+  }
+
   // ---------- 启动 ----------
   (async () => {
     try {
@@ -3044,5 +3104,6 @@
       panel.style.setProperty('--w', (CFG.panelWidth || 400) + 'px');
     } catch (_) { /* 忽略 */ }
     fillSettings();
+    if (CFG.hosted && !CFG.sbToken) firstRunGate();   // hostedOn() 要求有 token，这里只看模式
   })();
 })();
