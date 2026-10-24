@@ -2,7 +2,7 @@
 // @name         Safari AI Sidebar（自用）
 // @description  网页右侧 AI 侧边栏：自带 key 跑 DeepSeek / OpenRouter / Gemini / Anthropic，按任务自动挑最省钱且够用的模型
 // @namespace    cola.local
-// @version      1.0.0
+// @version      1.4.0
 // @edition      free
 // @match        *://*/*
 // @grant        GM.xmlHttpRequest
@@ -771,6 +771,37 @@
   .send:disabled { opacity: .45; cursor: default; }
   .fab { position: fixed; right: 14px; bottom: 90px; width: 38px; height: 38px; border-radius: 50%; border: 1px solid #3a4150; background: #1c2027ee; color: #cfd6e4; cursor: pointer; pointer-events: auto; font-size: 15px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
   .fab:hover { background: #262d38; }
+  .fab svg { width: 62%; height: 62%; display: block; }
+  .fab.grab { transition: none; }
+  /* —— 手机：小精灵 + 底部抽屉 —— */
+  .mob .wrap { top: auto; left: 0; right: 0; bottom: 0; height: 90dvh; align-items: flex-end; }
+  .mob .panel { width: 100% !important; height: 100%; border-left: 0; border-top: 1px solid #2a2e36;
+    border-radius: 18px 18px 0 0; box-shadow: 0 -14px 40px rgba(0,0,0,.5); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .mob .panel.hidden { transform: translateY(102%); }
+  .mob .grip { display: none; }
+  .mob .panel::before { content: ''; position: absolute; top: 7px; left: 50%; transform: translateX(-50%);
+    width: 38px; height: 4px; border-radius: 3px; background: #3a4150; }
+  .mob .bar { padding: 15px 12px 10px; }
+  .mob #msgs { font-size: 14.5px; }
+  .mob .row textarea, .mob textarea { font-size: 15.5px; }
+  .mob .fab { width: 54px; height: 54px; border-radius: 50%; color: #fff; border: 0;
+    background: linear-gradient(140deg, #5b8cff, #8b5cf6);
+    box-shadow: 0 10px 26px rgba(91,140,255,.45), 0 2px 8px rgba(0,0,0,.4);
+    touch-action: none; z-index: 2147483646; }
+  .mob .fab::after { content: ''; position: absolute; inset: -6px; border-radius: 50%;
+    border: 2px solid rgba(140,170,255,.28); animation: fabPulse 2.6s ease-out infinite; }
+  @keyframes fabPulse { 0% { transform: scale(.9); opacity: .9 } 70% { transform: scale(1.22); opacity: 0 } 100% { opacity: 0 } }
+  .mob .fab .dot { position: absolute; right: 3px; top: 3px; width: 11px; height: 11px; border-radius: 50%;
+    background: #38d39f; border: 2px solid #14161a; }
+  .selbub { position: fixed; z-index: 2147483646; display: none; align-items: center; gap: 6px;
+    padding: 9px 13px; border-radius: 14px; background: #1b2029f2; color: #e6e8ec; font-size: 13.5px;
+    border: 1px solid #39404d; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: auto; backdrop-filter: blur(8px); }
+  .selbub.on { display: flex; }
+  .selbub b { color: #9dbaff; font-weight: 600; }
+  .mini { position: fixed; z-index: 2147483647; left: 50%; transform: translateX(-50%);
+    background: #22272ff2; color: #fff; padding: 9px 15px; border-radius: 12px; font-size: 13.5px;
+    box-shadow: 0 10px 26px rgba(0,0,0,.5); opacity: 0; transition: .25s; pointer-events: none; }
+  .mini.on { opacity: 1; }
   .settings { padding: 12px; border-bottom: 1px solid #2a2e36; display: none; flex-direction: column; gap: 8px; max-height: 62%; overflow-y: auto; }
   .settings.on { display: flex; }
   .row { display: flex; flex-direction: column; gap: 3px; }
@@ -1004,7 +1035,15 @@
       </div>
     </div>
   </div>
-  <button class="fab" id="fab" title="AI 侧边栏 (⌘⇧K)">✦</button>
+  <button class="fab" id="fab" title="AI 笔记助手 (⌘⇧K)">
+    <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <path d="M16 3.6c-1.1 0-1.9.5-2.3 1.4L12.4 8c-.3.7-1 1.2-1.8 1.2H7.8c-2 0-3.2 2.2-2.2 3.9l1.5 2.5c.4.7.4 1.5 0 2.2l-1.5 2.5c-1 1.7.2 3.9 2.2 3.9h2.8c.8 0 1.5.5 1.8 1.2l1.3 3c.4.9 1.2 1.4 2.3 1.4s1.9-.5 2.3-1.4l1.3-3c.3-.7 1-1.2 1.8-1.2h2.8c2 0 3.2-2.2 2.2-3.9l-1.5-2.5c-.4-.7-.4-1.5 0-2.2l1.5-2.5c1-1.7-.2-3.9-2.2-3.9h-2.8c-.8 0-1.5-.5-1.8-1.2l-1.3-3c-.4-.9-1.2-1.4-2.3-1.4z" fill="rgba(255,255,255,.22)"/>
+      <circle cx="12.6" cy="15.4" r="1.9" fill="#fff"/>
+      <circle cx="19.4" cy="15.4" r="1.9" fill="#fff"/>
+      <path d="M12.8 19.6c.9 1.1 2 1.6 3.2 1.6s2.3-.5 3.2-1.6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+    <span class="dot"></span>
+  </button>
 </div>`;
 
 
@@ -1517,6 +1556,132 @@
   function openPanel() { busy = false; sendBtn.disabled = false; panel.classList.remove('hidden'); fab.style.display = 'none'; input.focus(); }
   function closePanel() { panel.classList.add('hidden'); fab.style.display = 'flex'; }
   fab.onclick = openPanel;
+
+  // ---------- 手机形态：小精灵 + 划词存入 ----------
+  const MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || Math.min(innerWidth, innerHeight) < 700;
+  const wrapEl = root.querySelector('.wrap');
+  let mini = null;
+  function miniToast(msg, ms = 2000) {
+    if (!mini) { mini = document.createElement('div'); mini.className = 'mini'; root.appendChild(mini); }
+    mini.textContent = msg;
+    mini.style.bottom = 'calc(env(safe-area-inset-bottom, 0px) + 92px)';
+    mini.classList.add('on');
+    clearTimeout(mini._h);
+    mini._h = setTimeout(() => mini.classList.remove('on'), ms);
+  }
+
+  async function saveSelection() {
+    const text = String(window.getSelection ? window.getSelection() : '').trim().replace(/\s+\n/g, '\n');
+    if (text.length < 6) { miniToast('选一段文字再点'); return; }
+    const title = (document.title || '选中文字').slice(0, 80);
+    const body = `# ${title}\n\n> 选自：${location.href}\n> ${new Date().toLocaleString('zh-CN')}\n\n${text.slice(0, 8000)}\n`;
+    miniToast('存中…', 9000);
+    try {
+      if (hostedOn()) {
+        const j = await noteCall('/share', { url: location.href, title, text: text.slice(0, 8000) });
+        miniToast(j && j.path ? '✦ 已存进笔记：' + String(j.path).split('/').pop() : '存不上');
+      } else {
+        const d = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const rel = `资料/${d.getFullYear()}-${pad(d.getMonth() + 1)}/${safeTitle(title)}-划词-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.md`;
+        await noteCall('/vault/write', { path: rel, body });
+        miniToast('✦ 已存进笔记：' + rel.split('/').pop());
+      }
+    } catch (e) {
+      miniToast('存不上：' + String(e.message || e).slice(0, 40), 3000);
+    }
+    hideSelBub();
+    try { window.getSelection().removeAllRanges(); } catch (_) {}
+  }
+  function safeTitle(t) { return String(t).replace(/[\\/:*?"<>|\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40) || '未命名'; }
+
+  let selbub = null;
+  function hideSelBub() { if (selbub) selbub.classList.remove('on'); }
+  function showSelBub(x, y, topY) {
+    if (!selbub) {
+      selbub = document.createElement('div');
+      selbub.className = 'selbub';
+      selbub.innerHTML = '<b>✦</b> 存进笔记';
+      selbub.addEventListener('touchstart', e => { e.preventDefault(); saveSelection(); }, { passive: false });
+      selbub.addEventListener('click', e => { e.preventDefault(); saveSelection(); });
+      root.appendChild(selbub);
+    }
+    const w = 118, h = 40;
+    // 优先放选中文字上方（像 iOS 原生菜单），上方没地方才放下面，两边都别压住正文
+    const above = (topY != null ? topY : y) - h - 24;   // 留够空隙，别压字
+    const useAbove = above > 60;
+    selbub.style.left = Math.max(8, Math.min(innerWidth - w - 8, x - w / 2)) + 'px';
+    selbub.style.top = (useAbove ? above : Math.min(innerHeight - h - 16, y + 34)) + 'px';
+    selbub.classList.add('on');
+  }
+
+  if (MOBILE) {
+    wrapEl.classList.add('mob');
+    fab.classList.add('mob-fab');
+    // 位置记忆：靠右、拇指够得到的下方
+    const put = (x, y) => {
+      const S = 54;
+      fab.style.left = Math.max(6, Math.min(innerWidth - S - 6, x)) + 'px';
+      fab.style.top = Math.max(6, Math.min(innerHeight - S - 6, y)) + 'px';
+      fab.style.right = 'auto';
+      fab.style.bottom = 'auto';
+    };
+    let px = null, py = null;
+    try { const j = JSON.parse(localStorage.getItem('sb_fab_pos') || 'null'); if (j) { px = j.x; py = j.y; } } catch (_) {}
+    put(px == null ? innerWidth - 54 - 14 : px, py == null ? innerHeight - 54 - 90 : py);
+
+    let dragging = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0;
+    fab.addEventListener('pointerdown', e => {
+      dragging = true; moved = false;
+      sx = e.clientX; sy = e.clientY;
+      const r = fab.getBoundingClientRect(); ox = r.left; oy = r.top;
+      fab.classList.add('grab');
+      fab.setPointerCapture && fab.setPointerCapture(e.pointerId);
+    });
+    fab.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) moved = true;
+      if (moved) put(ox + dx, oy + dy);
+    });
+    fab.addEventListener('pointerup', e => {
+      if (!dragging) return;
+      dragging = false; fab.classList.remove('grab');
+      setTimeout(() => { moved = false; }, 320);   // 拖完别把紧接着的一次点击吞掉
+      if (!moved) return;
+      // 松手后贴边
+      const r = fab.getBoundingClientRect();
+      const snapX = r.left + 27 < innerWidth / 2 ? 10 : innerWidth - 54 - 10;
+      put(snapX, r.top);
+      try { localStorage.setItem('sb_fab_pos', JSON.stringify({ x: snapX, y: r.top })); } catch (_) {}
+    });
+    fab.addEventListener('click', e => { if (moved) { e.preventDefault(); e.stopPropagation(); } }, true);
+
+    // 划词 → 小气泡
+    let selT = null;
+    const onSel = () => {
+      clearTimeout(selT);
+      selT = setTimeout(() => {
+        const sel = window.getSelection ? window.getSelection() : null;
+        const text = sel ? String(sel).trim() : '';
+        if (!sel || sel.isCollapsed || text.length < 6) { hideSelBub(); return; }
+        let r = null, rects = [];
+        try {
+          rects = [...sel.getRangeAt(0).getClientRects()];
+          r = rects.length ? rects[rects.length - 1] : sel.getRangeAt(0).getBoundingClientRect();
+        } catch (_) { hideSelBub(); return; }
+        if (!r || (!r.width && !r.height)) { hideSelBub(); return; }
+        showSelBub(r.left + r.width / 2, r.bottom, rects.length ? rects[0].top : r.top);
+      }, 260);
+    };
+    document.addEventListener('selectionchange', onSel);
+    document.addEventListener('touchend', () => setTimeout(onSel, 60), { passive: true });
+    document.addEventListener('scroll', hideSelBub, { passive: true, capture: true });
+    // 点面板外收起气泡
+    document.addEventListener('touchstart', e => {
+      if (selbub && selbub.classList.contains('on') && !selbub.contains(e.target)) hideSelBub();
+    }, { passive: true });
+  }
   $('close').onclick = closePanel;
   $('clear').onclick = () => { history.length = 0; msgs.innerHTML = ''; };
 

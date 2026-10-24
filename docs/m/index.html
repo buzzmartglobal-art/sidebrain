@@ -219,7 +219,10 @@
   <input id="gMail" type="email" inputmode="email" autocomplete="email" placeholder="你的邮箱">
   <button class="btn primary" id="gGo">开始</button>
   <div class="tip" id="gTip">同一个邮箱在电脑和手机上都是一个账号</div>
-  <div style="text-align:center;margin-top:10px"><a id="gHow" href="https://buzzmartglobal-art.github.io/sidebrain/install.html" style="color:#8fb0ff;font-size:13px;text-decoration:none">怎么装到主屏？</a></div>
+  <div style="text-align:center;margin-top:10px;line-height:2">
+    <a id="gHow" href="https://buzzmartglobal-art.github.io/sidebrain/install.html" style="color:#8fb0ff;font-size:13px;text-decoration:none">怎么装到主屏？</a><br>
+    <a id="gSprite" href="https://buzzmartglobal-art.github.io/sidebrain/install.html#iphone" style="color:#8b93a1;font-size:12.5px;text-decoration:none"></a>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -234,7 +237,7 @@
       ph:'发消息…', hint:'回答来自自动选中的模型，你不用挑', notes:'笔记', settings:'设置',
       send:'发送', thinking:'在想…', copy:'复制', copied:'已复制', retry:'重试', del:'删除',
       gateTitle:'把脑子装进手机', gateSub:'输一个邮箱就开始用。7 天免费，之后 $8 一个月，不用挑模型。',
-      gateBtn:'开始', gateMail:'你的邮箱', gateTip:'同一个邮箱在电脑和手机上都是一个账号', howto:'怎么装到主屏？',
+      gateBtn:'开始', gateMail:'你的邮箱', gateTip:'同一个邮箱在电脑和手机上都是一个账号', howto:'怎么装到主屏？', sprite:'想在每个网页上都有小精灵？',
       q1:'帮我总结这个页面', q2:'把这段代码解释一下', q3:'今天有什么值得关注的',
       empty:'这里还是空的', memo:'今日备忘录', newNote:'新建笔记', save:'保存', cancel:'取消',
       title:'标题', body:'正文', search:'搜索笔记', readFail:'读不出来', netFail:'网络不通，稍后再试',
@@ -247,7 +250,7 @@
       ph:'Message…', hint:'A model is picked for you — no choosing', notes:'Notes', settings:'Settings',
       send:'Send', thinking:'Thinking…', copy:'Copy', copied:'Copied', retry:'Retry', del:'Delete',
       gateTitle:'Your brain, on your phone', gateSub:'Enter an email to start. 7 days free, then $8/month. No model picking.',
-      gateBtn:'Start', gateMail:'Your email', gateTip:'The same email is the same account on desktop and phone', howto:'Add to Home Screen?',
+      gateBtn:'Start', gateMail:'Your email', gateTip:'The same email is the same account on desktop and phone', howto:'Add to Home Screen?', sprite:'Want the sprite on every page?',
       q1:'Summarize this page', q2:'Explain this code', q3:"What's worth knowing today",
       empty:'Nothing here yet', memo:"Today's memo", newNote:'New note', save:'Save', cancel:'Cancel',
       title:'Title', body:'Body', search:'Search notes', readFail:"Couldn't read that", netFail:'Network hiccup, try again',
@@ -844,6 +847,7 @@
   $('#gTitle').textContent = T.gateTitle; $('#gSub').textContent = T.gateSub;
   $('#gGo').textContent = T.gateBtn; $('#gMail').placeholder = T.gateMail; $('#gTip').textContent = T.gateTip;
   $('#gHow').textContent = T.howto;
+  $('#gSprite').textContent = T.sprite;
   paintQuick();
   paintChat();
   if (store.k) refreshAcct(); else $('#gate').classList.remove('hide');
