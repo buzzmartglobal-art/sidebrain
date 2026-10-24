@@ -807,6 +807,24 @@
   .memp-d-open { color: #6f9fd8; cursor: pointer; }
   .memp-del { background: none; border: 1px solid #3a2a2a; color: #c98b8b; border-radius: 6px; font-size: 11px; padding: 3px 7px; cursor: pointer; flex: 0 0 auto; }
   .memp-del:hover { background: #2a1d1d; }
+  .notep { position: absolute; inset: 34px 0 0 0; background: #16191f; display: none; flex-direction: column; z-index: 5; }
+  .notep.on { display: flex; }
+  .note-view { display: none; flex: 1; overflow-y: auto; padding: 12px; font-size: 13px; line-height: 1.75; color: #d6dbe4; }
+  .note-view.on { display: block; }
+  .note-view h1 { font-size: 16px; margin: 2px 0 10px; }
+  .note-view h2 { font-size: 14px; margin: 14px 0 6px; }
+  .note-view h3 { font-size: 13px; margin: 10px 0 4px; }
+  .note-view p { margin: 6px 0; }
+  .note-view ul, .note-view ol { padding-left: 18px; margin: 6px 0; }
+  .note-view code { background: #232830; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+  .note-view pre { background: #1b1f26; border: 1px solid #2a2f38; border-radius: 6px; padding: 8px; overflow-x: auto; font-size: 12px; }
+  .note-view blockquote { border-left: 2px solid #3a4250; margin: 8px 0; padding-left: 10px; color: #9aa6b8; }
+  .note-view .nl { color: #7fb0ff; cursor: pointer; border-bottom: 1px dashed #43608c; }
+  .note-view .nbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .note-view .nbar button { background: #232830; border: 1px solid #333a45; color: #b9c2d0; border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; }
+  .note-view .nmeta { font-size: 11px; color: #6b7484; margin-bottom: 8px; }
+  .note-view .nback { margin-top: 14px; border-top: 1px solid #262b33; padding-top: 8px; font-size: 12px; color: #93a0b5; }
+  .note-view textarea { width: 100%; min-height: 320px; background: #1c2027; border: 1px solid #2f3540; border-radius: 6px; padding: 8px; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.6; color: #d6dbe4; }
   .memp-foot { padding: 8px 12px; border-top: 1px solid #2a2e36; display: flex; gap: 8px; align-items: center; }
   .memp-empty { padding: 24px 12px; text-align: center; color: #6b7484; font-size: 12px; line-height: 1.7; }
   .hint b { color: #93a0b5; }
@@ -845,6 +863,7 @@
       <button class="ico" id="searchbtn" title="联网搜索（免费，走本地网关）">🔍</button>
       <button class="ico" id="memobtn" title="自动记住看过的网页（只存本机）">🧠</button>
       <button class="ico" id="memlist" title="记忆：看过哪些页（可删单条 / 一键清空）">🗂</button>
+      <button class="ico" id="notebtn" title="笔记（Obsidian 库，可直接读写）">🗒</button>
       <button class="ico" id="gear" title="设置">⚙︎</button>
       <button class="ico" id="clear" title="清空本页对话">⟲</button>
       <button class="ico" id="close" title="收起 (⌘⇧K)">✕</button>
@@ -869,6 +888,24 @@
         <button class="send" id="mem-restore" style="padding:5px 10px;font-size:12px;background:#3a4048">恢复上次快照</button>
         <span style="flex:1"></span>
         <button class="send" id="mem-clear" style="padding:5px 10px;font-size:12px;background:#4a2222">一键清空</button>
+      </div>
+    </div>
+    <div class="notep" id="notep">
+      <div class="memp-top">
+        <span>笔记 · <b id="note-count">0</b> 篇 <span id="note-root"></span></span>
+        <span style="flex:1"></span>
+        <button class="ico" id="note-retitle" title="刷新">↻</button>
+        <button class="ico" id="note-close" title="关闭">✕</button>
+      </div>
+      <div class="memp-q"><input id="note-q" type="text" placeholder="搜笔记：打几个词就行，中文也可以"></div>
+      <div class="memp-list" id="note-list"></div>
+      <div class="note-view" id="note-view"></div>
+      <div class="memp-foot" id="note-foot">
+        <button class="send" id="note-new" style="padding:5px 10px;font-size:12px">新建</button>
+        <button class="send" id="note-daily" style="padding:5px 10px;font-size:12px;background:#3a4048">今天的日记</button>
+        <button class="send" id="note-memo" style="padding:5px 10px;font-size:12px;background:#2f4a6f">今日备忘录</button>
+        <span style="flex:1"></span>
+        <span style="font-size:11px;color:#6b7484" id="note-hint">点标题读，读的时候能改</span>
       </div>
     </div>
     <div class="settings" id="settings">
@@ -1529,6 +1566,7 @@
   }
   setTimeout(refreshTrial, 600);
   bindAttach();
+  bindNotes();
   resolveEndpoint().finally(() => setTimeout(refreshAcct, 300));
   setTimeout(autoCapture, 4000);
   let lastHref = location.href;
@@ -2035,6 +2073,285 @@
   }
   });
 
+  // ---------- 笔记（Obsidian 库直连：列表 / 读 / 改 / 建 / 双链 / 反向链接） ----------
+  let NOTE_CUR = null;   // 当前打开的那一篇
+  const noteCall = (pathname, body) => {
+    const base = hostedOn() ? SERVER() : CFG.gatewayUrl;
+    return gm({
+      method: 'POST',
+      url: base + pathname,
+      headers: { 'Content-Type': 'application/json', 'bypass-tunnel-reminder': '1', ...(CFG.sbToken ? { Authorization: 'Bearer ' + CFG.sbToken } : {}) },
+      data: JSON.stringify(body || {}),
+      timeout: 20000,
+    }).then(r => {
+      let j = {};
+      try { j = JSON.parse(r.responseText); } catch (_) {}
+      if (r.status >= 200 && r.status < 300) return j;
+      const e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; throw e;
+    });
+  };
+
+  function noteListRow(item, depth = 0) {
+    const row = document.createElement('div');
+    row.className = 'memp-row';
+    row.style.paddingLeft = (12 + depth * 12) + 'px';
+    const t = document.createElement('div');
+    t.className = 'memp-t';
+    t.textContent = (item.type === 'dir' ? '📁 ' : '📄 ') + item.name;
+    row.appendChild(t);
+    if (item.type === 'dir') {
+      row.onclick = () => openNoteDir(item.path);
+    } else {
+      const sub = document.createElement('div');
+      sub.className = 'memp-sub';
+      sub.textContent = item.path;
+      row.appendChild(sub);
+      row.onclick = () => openNote(item.path);
+    }
+    return row;
+  }
+
+  function paintNoteList(items, root) {
+    const box = $('note-list');
+    box.innerHTML = '';
+    if (!items.length) {
+      box.innerHTML = '<div class="memp-empty">这里还没有笔记。点底部「新建」，或者在对话里点 💾 把回答存成一篇。</div>';
+      return;
+    }
+    const flat = [];
+    const walk = (arr, depth) => arr.forEach(x => {
+      if (x.type === 'dir') { flat.push({ ...x, depth }); walk(x.children || [], depth + 1); }
+      else flat.push({ ...x, depth });
+    });
+    walk(items, 0);
+    flat.slice(0, 300).forEach(x => box.appendChild(noteListRow(x, x.depth)));
+    $('note-count').textContent = flat.filter(x => x.type === 'note').length;
+    if (root) $('note-root').textContent = '· ' + (root === 'local' ? '本机库' : '我的库');
+  }
+
+  async function loadNotes() {
+    try {
+      const j = await noteCall('/vault/list', {});
+      paintNoteList(j.notes || [], j.root);
+    } catch (e) {
+      $('note-list').innerHTML = '<div class="memp-empty">读不到笔记库：' + esc(e.message || String(e)) + '<br><br>' + (hostedOn() ? '检查服务器是否在线。' : '检查网关是否在跑（' + CFG.gatewayUrl + '）。') + '</div>';
+    }
+  }
+
+  function openNoteDir(p) {
+    noteCall('/vault/list', { dir: p }).then(j => paintNoteList(j.notes || [])).catch(() => {});
+  }
+
+  // 笔记正文：Markdown 里的结构都还原（标题/列表/引用/分隔线/任务框），再挂双链
+  function renderNoteBody(body) {
+    let src = String(body || '').replace(/^---\n[\s\S]*?\n---\n/, '');
+    src = esc(src);
+    src = src.replace(/```([\s\S]*?)```/g, (_, c) => `<pre>${c.replace(/^\w*\n/, '')}</pre>`);
+    src = src.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    src = src.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+    src = src.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<div class="nimg">🖼 $1 $2</div>');
+    const lines = src.split('\n');
+    const out = [];
+    let inList = false;
+    const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+    for (const raw of lines) {
+      const l = raw.trimEnd();
+      const h = /^(#{1,6})\s+(.*)$/.exec(l);
+      if (h) { closeList(); out.push(`<h${h[1].length}>${h[2]}</h${h[1].length}>`); continue; }
+      if (/^\s*[-*]\s+\[[ xX]\]\s+/.test(l)) {
+        if (!inList) { out.push('<ul>'); inList = true; }
+        out.push('<li>' + l.replace(/^\s*[-*]\s+\[([ xX])\]\s+/, (_, c) => (c === ' ' ? '☐ ' : '☑ ')) + '</li>');
+        continue;
+      }
+      if (/^\s*[-*]\s+/.test(l)) {
+        if (!inList) { out.push('<ul>'); inList = true; }
+        out.push('<li>' + l.replace(/^\s*[-*]\s+/, '') + '</li>');
+        continue;
+      }
+      if (/^\s*\d+\.\s+/.test(l)) {
+        if (!inList) { out.push('<ol>'); inList = true; }
+        out.push('<li>' + l.replace(/^\s*\d+\.\s+/, '') + '</li>');
+        continue;
+      }
+      closeList();
+      if (/^>\s?/.test(l)) { out.push('<blockquote>' + l.replace(/^>\s?/, '') + '</blockquote>'); continue; }
+      if (/^---+$/.test(l.trim())) { out.push('<hr>'); continue; }
+      if (!l.trim()) { out.push(''); continue; }
+      out.push(`<p>${l}</p>`);
+    }
+    closeList();
+    const html = out.join('\n');
+    return html.replace(/\[\[([^\]|#]+)(?:[#|]([^\]]*))?\]\]/g, (_, name) => {
+      const safe = name.replace(/"/g, '&quot;');
+      return `<span class="nl" data-note="${safe}">${esc(name)}</span>`;
+    });
+  }
+
+  async function openNote(path) {
+    try {
+      const n = await noteCall('/vault/read', { path });
+      NOTE_CUR = n;
+      const v = $('note-view');
+      const back = (n.backlinks || []).length
+        ? `<div class="nback">↩ 被 ${n.backlinks.length} 篇引用：` +
+          n.backlinks.map(b => `<span class="nl" data-note="${esc(b.path.replace(/\.md$/, ''))}">${esc(b.title)}</span>`).join(' · ') + '</div>'
+        : '<div class="nback">还没有别的笔记引用它。</div>';
+      v.innerHTML = `<div class="nbar">
+          <button data-act="back">← 列表</button>
+          <button data-act="edit">✎ 编辑</button>
+          <button data-act="append">＋ 追加</button>
+          <button data-act="open-app">在 Obsidian 里打开</button>
+          <button data-act="del" style="border-color:#7a3030;color:#e0a0a0">删除</button>
+        </div>
+        <div class="nmeta">${esc(n.path)} · ${n.size} 字</div>
+        <div class="nbody">${renderNoteBody(n.body)}</div>${back}`;
+      v.classList.add('on');
+      $('note-list').style.display = 'none';
+      $('note-foot').style.display = 'none';
+      v.querySelectorAll('.nl').forEach(el => {
+        el.onclick = () => {
+          const t = el.getAttribute('data-note');
+          if (!t) return;
+          openNote(t.endsWith('.md') ? t : t + '.md');
+        };
+      });
+      v.querySelector('[data-act="back"]').onclick = () => closeNoteView();
+      v.querySelector('[data-act="edit"]').onclick = () => editNote(n, false);
+      v.querySelector('[data-act="append"]').onclick = () => editNote(n, true);
+      v.querySelector('[data-act="open-app"]').onclick = () => {
+        bubble('a', LANG === 'zh'
+          ? `这篇在磁盘上的位置：\n\n\`${n.path}\`\n\n在 Obsidian 里搜文件名就能打开；改完回来点 ↻ 刷新。`
+          : `On disk:\n\n\`${n.path}\`\n\nOpen it in Obsidian by filename; hit ↻ here after you edit.`);
+      };
+      v.querySelector('[data-act="del"]').onclick = async () => {
+        if (!confirm(LANG === 'zh' ? `删掉「${n.title}」？会先备份一份。` : `Delete "${n.title}"? A backup is kept.`)) return;
+        try { await noteCall('/vault/delete', { path: n.path }); closeNoteView(); loadNotes(); }
+        catch (e) { alert(e.message); }
+      };
+    } catch (e) {
+      alert(LANG === 'zh' ? '打不开这一篇：' + e.message : 'Cannot open: ' + e.message);
+    }
+  }
+
+  function closeNoteView() {
+    $('note-view').classList.remove('on');
+    $('note-view').innerHTML = '';
+    $('note-list').style.display = '';
+    $('note-foot').style.display = '';
+    NOTE_CUR = null;
+  }
+
+  function editNote(n, appendMode) {
+    const v = $('note-view');
+    v.innerHTML = `<div class="nbar">
+        <button data-act="save" style="border-color:#2f6fed;color:#a9c7ff">保存</button>
+        <button data-act="cancel">取消</button>
+      </div>
+      <div class="nmeta">${esc(n.path)}${appendMode ? ' · 追加到末尾' : ''}</div>
+      <textarea id="note-editor"></textarea>`;
+    const ta = v.querySelector('#note-editor');
+    ta.value = appendMode ? '' : (n.body || '');
+    if (appendMode) ta.placeholder = LANG === 'zh' ? '写在末尾的内容…（自动空一行）' : 'Text to add at the end…';
+    v.querySelector('[data-act="cancel"]').onclick = () => openNote(n.path);
+    v.querySelector('[data-act="save"]').onclick = async () => {
+      try {
+        await noteCall('/vault/write', { path: n.path, body: ta.value, mode: appendMode ? 'append' : 'overwrite' });
+        await openNote(n.path);
+        loadNotes();
+      } catch (e) { alert(e.message); }
+    };
+    ta.focus();
+  }
+
+  async function newNote(title, body) {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+    const name = (title || (LANG === 'zh' ? '新笔记' : 'Untitled')).replace(/[\\/:*?"<>|]/g, '').slice(0, 60).trim() || 'note';
+    const path = `${name}-${stamp}.md`;
+    const content = body || `# ${title || name}\n\n`;
+    await noteCall('/vault/write', { path, body: content });
+    openNote(path);
+    loadNotes();
+  }
+
+  function bindNotes() {
+    $('notebtn').onclick = () => {
+      const p = $('notep');
+      const on = p.classList.toggle('on');
+      $('memp').classList.remove('on');
+      $('settings').classList.remove('on');
+      if (on) loadNotes();
+    };
+    $('note-close').onclick = () => { $('notep').classList.remove('on'); closeNoteView(); };
+    $('note-retitle').onclick = () => { closeNoteView(); loadNotes(); };
+    $('note-new').onclick = async () => {
+      const t = prompt(LANG === 'zh' ? '笔记标题' : 'Note title', '');
+      if (t === null) return;
+      try { await newNote(t.trim()); } catch (e) { alert(e.message); }
+    };
+    $('note-daily').onclick = async () => {
+      try { const r = await noteCall('/vault/daily', {}); openNote(r.path); }
+      catch (e) { alert(e.message); }
+    };
+    $('note-memo').onclick = async () => {
+      const btn = $('note-memo');
+      btn.disabled = true; btn.textContent = '生成中…';
+      try {
+        const r = await noteCall('/vault/memo', {});
+        await openNote(r.path);
+        $('note-q').value = '';
+      } catch (e) { alert(e.message); }
+      finally { btn.disabled = false; btn.textContent = '今日备忘录'; }
+    };
+    let timer = null;
+    $('note-q').oninput = () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        const q = $('note-q').value.trim();
+        if (!q) return loadNotes();
+        try {
+          const j = await noteCall('/vault/search', { q, k: 20 });
+          const box = $('note-list');
+          box.innerHTML = '';
+          if (!(j.hits || []).length) { box.innerHTML = '<div class="memp-empty">没搜到。换个词试试，或者去「今天」记一条。</div>'; return; }
+          j.hits.forEach(h => {
+            const row = document.createElement('div');
+            row.className = 'memp-row';
+            row.innerHTML = `<div class="memp-t">📄 ${esc(h.title)}</div><div class="memp-sub">${esc(h.path)}</div><div class="memp-ex">${esc(h.excerpt || '')}</div>`;
+            row.onclick = () => openNote(h.path);
+            box.appendChild(row);
+          });
+        } catch (e) { /* 搜索失败不炸面板 */ }
+      }, 300);
+    };
+  }
+
+  // 把一条回答存成笔记
+  async function saveAnswerAsNote(meta) {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const title = (meta.q || '对话').replace(/[\\/:*?"<>|]/g, '').slice(0, 50).trim();
+    const path = `${title}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.md`;
+    const body = [
+      '---',
+      `created: ${d.toISOString().slice(0, 19).replace('T', ' ')}`,
+      `source: ${location.href}`,
+      `channel: ${meta.channel || ''}`,
+      'tags: [sidebrain]',
+      '---',
+      '',
+      `# ${meta.q || '对话记录'}`,
+      '',
+      meta.text || '',
+      '',
+      `> 来源：${document.title || location.href}`,
+      '',
+    ].join('\n');
+    await noteCall('/vault/write', { path, body });
+    bubble('a', LANG === 'zh' ? `存好了：\`${path}\`\n\n点 🗒 就能看到，也能改。` : `Saved as \`${path}\`. Open 🗒 to edit it.`);
+  }
+
   // ---------- 附件：图片 / 文本文件（粘贴、拖拽、选文件三条路都通） ----------
   const ATT = { image: null, files: [] };   // image: {dataUrl, mime}; files: [{name, text}]
   const TEXT_EXT = /\.(txt|md|markdown|json|jsonl|csv|tsv|log|js|mjs|ts|tsx|jsx|py|rb|go|rs|java|c|h|cpp|css|html|xml|yml|yaml|sh|toml|ini)$/i;
@@ -2371,6 +2688,8 @@
             body: {
               messages: ctxMsgs.map(m => ({ role: m.role, content: m.content })),
               image: sentImage,
+              files: sentFiles.map(f => ({ name: f.name, text: f.text })),
+              url: location.href,
               page,
               system: getSystem() + (searchBlock ? '\n\n' + searchBlock : ''),
             },
@@ -2399,7 +2718,7 @@
         b.innerHTML = md(answer || '(空回复)');
         const tag0 = document.createElement('div');
         tag0.className = 'tag';
-        tag0.textContent = `${r.channel || '服务器'} · ${r.model || ''}${searchNote ? ' · ' + searchNote : ''}`;
+        tag0.textContent = `${r.channel || '服务器'} · ${r.model || ''}${searchNote ? ' · ' + searchNote : ''}${r.saved ? ' · 已入库' : ''}`;
         b.appendChild(tag0);
         addFooter(b, {
           q: text, text: answer, channel: r.channel || 'server', model: r.model || '',
