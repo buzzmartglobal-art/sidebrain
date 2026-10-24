@@ -219,6 +219,7 @@
   <input id="gMail" type="email" inputmode="email" autocomplete="email" placeholder="你的邮箱">
   <button class="btn primary" id="gGo">开始</button>
   <div class="tip" id="gTip">同一个邮箱在电脑和手机上都是一个账号</div>
+  <div style="text-align:center;margin-top:10px"><a id="gHow" href="https://buzzmartglobal-art.github.io/sidebrain/install.html" style="color:#8fb0ff;font-size:13px;text-decoration:none">怎么装到主屏？</a></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -233,27 +234,27 @@
       ph:'发消息…', hint:'回答来自自动选中的模型，你不用挑', notes:'笔记', settings:'设置',
       send:'发送', thinking:'在想…', copy:'复制', copied:'已复制', retry:'重试', del:'删除',
       gateTitle:'把脑子装进手机', gateSub:'输一个邮箱就开始用。7 天免费，之后 $8 一个月，不用挑模型。',
-      gateBtn:'开始', gateMail:'你的邮箱', gateTip:'同一个邮箱在电脑和手机上都是一个账号',
+      gateBtn:'开始', gateMail:'你的邮箱', gateTip:'同一个邮箱在电脑和手机上都是一个账号', howto:'怎么装到主屏？',
       q1:'帮我总结这个页面', q2:'把这段代码解释一下', q3:'今天有什么值得关注的',
       empty:'这里还是空的', memo:'今日备忘录', newNote:'新建笔记', save:'保存', cancel:'取消',
       title:'标题', body:'正文', search:'搜索笔记', readFail:'读不出来', netFail:'网络不通，稍后再试',
       acctTrial:'试用中', acctActive:'已订阅', days:'天可用', logout:'换个账号', clear:'清空对话',
       voice:'说话', listening:'听着…', tapStop:'点一下结束', files:'文件', img:'图片', attached:'附件',
       saved:'已存进笔记', memoBusy:'正在生成今天的备忘录…', memoDone:'备忘录写好了', noNotes:'笔记本里还没有东西',
-      attachments:'附件', voiceUnsupported:'这台设备不支持网页语音，用键盘上的麦克风键就行', saveFail:'没存上',
+      attachments:'附件', voiceUnsupported:'这台设备不支持网页语音，用键盘上的麦克风键就行', saveFail:'没存上', clip:'收一篇', clipPh:'贴一个网页链接', clipBusy:'正在读这篇文章并整理…', clipDone:'已存进剪藏', exportV:'导出笔记库', exportTip:'拿到一个 zip，Obsidian 或其他笔记软件都能直接打开', shareAddr:'分享地址', shareTip:'粘到快捷指令里，手机上分享文章就能直接存进来', copyAddr:'复制地址', addrCopied:'地址已复制',
     },
     en: { hi:'What do you need?', hp:'Screenshots, files and voice all work. Every answer is saved into your notes.',
       ph:'Message…', hint:'A model is picked for you — no choosing', notes:'Notes', settings:'Settings',
       send:'Send', thinking:'Thinking…', copy:'Copy', copied:'Copied', retry:'Retry', del:'Delete',
       gateTitle:'Your brain, on your phone', gateSub:'Enter an email to start. 7 days free, then $8/month. No model picking.',
-      gateBtn:'Start', gateMail:'Your email', gateTip:'The same email is the same account on desktop and phone',
+      gateBtn:'Start', gateMail:'Your email', gateTip:'The same email is the same account on desktop and phone', howto:'Add to Home Screen?',
       q1:'Summarize this page', q2:'Explain this code', q3:"What's worth knowing today",
       empty:'Nothing here yet', memo:"Today's memo", newNote:'New note', save:'Save', cancel:'Cancel',
       title:'Title', body:'Body', search:'Search notes', readFail:"Couldn't read that", netFail:'Network hiccup, try again',
       acctTrial:'Trial', acctActive:'Subscribed', days:'days left', logout:'Switch account', clear:'Clear chat',
       voice:'Speak', listening:'Listening…', tapStop:'Tap to stop', files:'Files', img:'Image', attached:'Attached',
       saved:'Saved to notes', memoBusy:"Writing today's memo…", memoDone:'Memo ready', noNotes:'Your notebook is empty',
-      attachments:'Attachments', voiceUnsupported:'Voice needs a newer Safari — use the mic key on your keyboard', saveFail:"Couldn't save",
+      attachments:'Attachments', voiceUnsupported:'Voice needs a newer Safari — use the mic key on your keyboard', saveFail:"Couldn't save", clip:'Clip a page', clipPh:'Paste a link', clipBusy:'Reading and summarising…', clipDone:'Clipped', exportV:'Export my notes', exportTip:'You get a zip any notes app can open', shareAddr:'Share address', shareTip:'Paste it into the shortcut once, then share any page to Sidebrain', copyAddr:'Copy address', addrCopied:'Address copied',
     }
   }[EN ? 'en' : 'zh'];
 
@@ -598,6 +599,7 @@
       const items = (r.notes || []).filter(n => !/^\./.test(n.name));
       const html = [];
       html.push('<div class="rowitem" id="memoBtn"><div class="t"><b>📅 ' + T.memo + '</b><span>' + new Date().toISOString().slice(0, 10) + '</span></div><div class="k">›</div></div>');
+      html.push('<div class="rowitem" id="clipBtn"><div class="t"><b>📥 ' + T.clip + '</b><span>' + T.clipPh + '</span></div><div class="k">›</div></div>');
       html.push('<div class="rowitem" id="searchBtn"><div class="t"><b>🔍 ' + T.search + '</b></div><div class="k">›</div></div>');
       if (dir) html.push('<div class="rowitem" data-dir=".."><div class="t"><b>📁 ..</b></div><div class="k">›</div></div>');
       if (!items.length) html.push('<div class="empty">' + T.noNotes + '</div>');
@@ -611,6 +613,7 @@
       nbody.querySelectorAll('[data-dir]').forEach(el => el.onclick = () => noteList(el.dataset.dir === '..' ? (dir || '').replace(/\/?[^/]*\/?$/, '') : el.dataset.dir));
       const mb = nbody.querySelector('#memoBtn'); if (mb) mb.onclick = makeMemo;
       const sb = nbody.querySelector('#searchBtn'); if (sb) sb.onclick = noteSearch;
+      const cb = nbody.querySelector('#clipBtn'); if (cb) cb.onclick = clipPage;
     } catch (e) {
       nbody.innerHTML = '<div class="empty">' + esc(e.message || T.readFail) + '</div>';
     }
@@ -751,6 +754,49 @@
     } catch (e) { toast(e.message || T.saveFail); }
   }
 
+
+  async function clipPage() {
+    $('#noteTitle').textContent = T.clip;
+    nbody.innerHTML =
+      '<div class="ninputs"><input id="clipUrl" type="url" inputmode="url" placeholder="https://…" autofocus></div>' +
+      '<div class="btn primary" id="clipGo">' + T.clip + '</div>' +
+      '<div class="hint" style="padding:10px 2px 0">' + (EN ? 'Works with articles, blog posts, docs. The page is read, summarised, and filed into 剪藏.' : '文章、博客、文档都行。读完会整理成摘要+要点，存进「剪藏」文件夹。') + '</div>';
+    const inp = nbody.querySelector('#clipUrl');
+    const go = async () => {
+      const u = inp.value.trim();
+      if (!/^https?:\/\//i.test(u)) { toast('https://?'); return; }
+      const b = nbody.querySelector('#clipGo');
+      b.innerHTML = '<span class="spin"></span>' + T.clipBusy;
+      b.disabled = true;
+      try {
+        const r = await api('/share', { url: u });
+        toast('✓ ' + T.clipDone);
+        noteList('剪藏');
+        openNote(r.path);
+      } catch (e) {
+        toast(e.message || T.netFail, 3000);
+        b.disabled = false; b.textContent = T.clip;
+      }
+    };
+    nbody.querySelector('#clipGo').onclick = go;
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  }
+
+  async function exportVault() {
+    toast('…', 6000);
+    try {
+      const r = await fetch((await ensureBase()) + '/vault/export?token=' + encodeURIComponent(store.k));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const blob = await r.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'sidebrain-notes-' + new Date().toISOString().slice(0, 10) + '.zip';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+      toast('✓ ' + Math.round(blob.size / 1024) + ' KB');
+    } catch (e) { toast(T.netFail, 2600); }
+  }
+
   /* ---------- 设置 ---------- */
   const menuSheet = $('#menuSheet');
   $('#btnMenu').onclick = () => { openSheet(menuSheet); paintMenu(); };
@@ -761,14 +807,23 @@
       '<div class="sec">账号</div>' +
       '<div class="rowitem"><div class="t"><b>' + esc(ACCT && ACCT.email || '—') + '</b><span>' +
         (ACCT ? (ACCT.plan === 'active' ? T.acctActive : T.acctTrial + ' · ' + (left != null ? left + ' ' + T.days : '')) : '') + '</span></div></div>' +
+      '<div class="sec">分享进来</div>' +
+      '<div class="rowitem" id="mShareAddr"><div class="t"><b>🔗 ' + T.shareAddr + '</b><span>' + T.shareTip + '</span></div><div class="k">' + T.copyAddr + ' ›</div></div>' +
       '<div class="sec">用</div>' +
       '<div class="rowitem" id="mNotes"><div class="t"><b>🗒 ' + T.notes + '</b></div><div class="k">›</div></div>' +
+      '<div class="rowitem" id="mExport"><div class="t"><b>⬇ ' + T.exportV + '</b><span>' + T.exportTip + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mClear"><div class="t"><b>🧹 ' + T.clear + '</b></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mLogout"><div class="t"><b>👤 ' + T.logout + '</b></div><div class="k">›</div></div>' +
       '<div class="sec">关于</div>' +
       '<div class="rowitem"><div class="t"><b>Sidebrain</b><span>' + (EN ? 'Routes each message to the cheapest model that fits. Notes stay in plain Markdown.' : '每条消息自动交给最合适又最便宜的模型。笔记就是普通 Markdown 文件。') + '</span></div></div>' +
       '<div class="hint" style="padding-top:16px">' + (EN ? 'Tip: Share → Add to Home Screen to use it like an app.' : '提示：点 Safari 的分享 → 添加到主屏幕，用起来就跟 App 一样。') + '</div>';
     $('#mNotes').onclick = () => { closeSheet(menuSheet); openSheet(sheet); noteList(''); };
+    $('#mShareAddr').onclick = async () => {
+      const addr = (await ensureBase()) + '/share?token=' + encodeURIComponent(store.k);
+      try { await navigator.clipboard.writeText(addr); toast(T.addrCopied); }
+      catch (_) { prompt(T.shareAddr, addr); }
+    };
+    $('#mExport').onclick = () => { closeSheet(menuSheet); exportVault(); };
     $('#mClear').onclick = () => {
       if (!confirm(T.clear + '?')) return;
       CHAT = []; saveChat(); paintChat(); closeSheet(menuSheet); toast('✓');
@@ -788,6 +843,7 @@
   ta.placeholder = T.ph; $('#hint').textContent = T.hint;
   $('#gTitle').textContent = T.gateTitle; $('#gSub').textContent = T.gateSub;
   $('#gGo').textContent = T.gateBtn; $('#gMail').placeholder = T.gateMail; $('#gTip').textContent = T.gateTip;
+  $('#gHow').textContent = T.howto;
   paintQuick();
   paintChat();
   if (store.k) refreshAcct(); else $('#gate').classList.remove('hide');
