@@ -782,6 +782,8 @@
   .mob .panel::before { content: ''; position: absolute; top: 7px; left: 50%; transform: translateX(-50%);
     width: 38px; height: 4px; border-radius: 3px; background: #3a4150; }
   .mob .bar { padding: 15px 12px 10px; }
+  .mob .composer { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
+  .mob .msgs { padding-bottom: 4px; }
   .mob #msgs { font-size: 14.5px; }
   .mob .row textarea, .mob textarea { font-size: 15.5px; }
   .mob .fab { width: 54px; height: 54px; border-radius: 50%; color: #fff; border: 0;
@@ -1617,6 +1619,8 @@
 
   if (MOBILE) {
     wrapEl.classList.add('mob');
+    const inp0 = root.getElementById('input');
+    if (inp0) inp0.placeholder = (typeof LANG !== 'undefined' && LANG && LANG !== 'zh') ? 'Ask anything…' : '问点什么…';
     fab.classList.add('mob-fab');
     // 位置记忆：靠右、拇指够得到的下方
     const put = (x, y) => {
