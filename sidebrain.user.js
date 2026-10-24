@@ -784,9 +784,16 @@
   textarea:focus { border-color: #4a6fa5; }
   .send { background: #3b6fd4; border: none; color: #fff; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
   .send:disabled { opacity: .45; cursor: default; }
-  .fab { position: fixed; right: 14px; bottom: 90px; width: 38px; height: 38px; border-radius: 50%; border: 1px solid #3a4150; background: #1c2027ee; color: #cfd6e4; cursor: pointer; pointer-events: auto; font-size: 15px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+  .fab { position: fixed; right: 16px; bottom: 88px; width: max-content; max-width: 220px; height: 40px; padding: 0 15px 0 7px; border-radius: 20px; border: 0; background: linear-gradient(140deg,#5b8cff,#8b5cf6); color: #fff; cursor: pointer; pointer-events: auto; font: 600 13px/1 -apple-system, "PingFang SC", sans-serif; display: flex; align-items: center; gap: 7px; box-shadow: 0 8px 22px rgba(91,140,255,.42); }
+  .fab .lab { white-space: nowrap; letter-spacing: .1px; }
+  /* 装好第一次进门给一句话，不然谁都找不到右下角那东西 */
+  .fabhint { position: fixed; right: 16px; bottom: 138px; max-width: 240px; background: #1c2027f2; color: #dbe3f0;
+             border: 1px solid #333c4a; border-radius: 11px; padding: 8px 11px; font-size: 12.5px; line-height: 1.5;
+             box-shadow: 0 8px 20px rgba(0,0,0,.32); pointer-events: none; opacity: 0; transition: opacity .25s; }
+  .fabhint.on { opacity: 1; }
   .fab:hover { background: #262d38; }
-  .fab svg { width: 62%; height: 62%; display: block; }
+  .fab svg { width: 22px; height: 22px; display: block; flex: none; }
+  .mob .fab svg { width: 62%; height: 62%; }
   .fab.grab { transition: none; }
   /* —— 手机：小精灵 + 底部抽屉 —— */
   .mob .wrap { top: auto; left: 0; right: 0; bottom: 0; height: 90dvh; align-items: flex-end; }
@@ -816,7 +823,9 @@
   .gx { text-align: center; font-size: 12px; color: #6d7686; margin-top: 12px; cursor: pointer; padding: 4px; }
   .mob #msgs { font-size: 14.5px; }
   .mob .row textarea, .mob textarea { font-size: 15.5px; }
-  .mob .fab { width: 54px; height: 54px; border-radius: 50%; color: #fff; border: 0;
+  .mob .fab { width: 54px; height: 54px; padding: 0; border-radius: 50%; color: #fff; border: 0; gap: 0; }
+  .mob .fab .lab { display: none; }
+  .mob .fabhint { display: none; }
     background: linear-gradient(140deg, #5b8cff, #8b5cf6);
     box-shadow: 0 10px 26px rgba(91,140,255,.45), 0 2px 8px rgba(0,0,0,.4);
     touch-action: none; z-index: 2147483646; }
@@ -1067,6 +1076,7 @@
       </div>
     </div>
   </div>
+  <div class="fabhint" id="fabhint"></div>
   <button class="fab" id="fab" title="AI 笔记助手 (⌘⇧K)">
     <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
       <path d="M16 3.6c-1.1 0-1.9.5-2.3 1.4L12.4 8c-.3.7-1 1.2-1.8 1.2H7.8c-2 0-3.2 2.2-2.2 3.9l1.5 2.5c.4.7.4 1.5 0 2.2l-1.5 2.5c-1 1.7.2 3.9 2.2 3.9h2.8c.8 0 1.5.5 1.8 1.2l1.3 3c.4.9 1.2 1.4 2.3 1.4s1.9-.5 2.3-1.4l1.3-3c.3-.7 1-1.2 1.8-1.2h2.8c2 0 3.2-2.2 2.2-3.9l-1.5-2.5c-.4-.7-.4-1.5 0-2.2l1.5-2.5c1-1.7-.2-3.9-2.2-3.9h-2.8c-.8 0-1.5-.5-1.8-1.2l-1.3-3c-.4-.9-1.2-1.4-2.3-1.4z" fill="rgba(255,255,255,.22)"/>
@@ -1075,6 +1085,7 @@
       <path d="M12.8 19.6c.9 1.1 2 1.6 3.2 1.6s2.3-.5 3.2-1.6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
     </svg>
     <span class="dot"></span>
+    <span class="lab">Sidebrain</span>
   </button>
 </div>`;
 
@@ -1583,6 +1594,27 @@
       };
       el.appendChild(box);
     }
+  }
+
+  // 第一次装好，右下角那个东西必须被看见一次
+  async function firstHint() {
+    if (MOBILE) return;
+    try {
+      if (await GM.getValue('hintShown', false)) return;
+    } catch (_) {}
+    const h = $('fabhint');
+    if (!h) return;
+    h.textContent = LANG === 'zh' ? '点这里就能问这一页 · ⌘⇧K' : 'Tap here to ask about this page · ⌘⇧K';
+    h.classList.add('on');
+    let done = false;
+    const off = () => {
+      if (done) return;
+      done = true;
+      h.classList.remove('on');
+      try { GM.setValue('hintShown', true); } catch (_) {}
+    };
+    setTimeout(off, 9000);
+    fab.addEventListener('click', off, { once: true });
   }
 
   function openPanel() { busy = false; sendBtn.disabled = false; panel.classList.remove('hidden'); fab.style.display = 'none'; input.focus(); }
@@ -3119,6 +3151,7 @@
       panel.style.setProperty('--w', (CFG.panelWidth || 400) + 'px');
     } catch (_) { /* 忽略 */ }
     fillSettings();
-    if (CFG.hosted && !CFG.sbToken) firstRunGate();   // hostedOn() 要求有 token，这里只看模式
+    if (CFG.hosted && !CFG.sbToken) firstRunGate();
+    else firstHint();   // hostedOn() 要求有 token，这里只看模式
   })();
 })();
