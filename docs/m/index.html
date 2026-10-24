@@ -245,11 +245,11 @@
       voice:'说话', listening:'听着…', tapStop:'点一下结束', files:'文件', img:'图片', attached:'附件',
       saved:'已存进笔记', memoBusy:'正在生成今天的备忘录…', memoDone:'备忘录写好了', noNotes:'笔记本里还没有东西',
       attachments:'附件', voiceUnsupported:'这台设备不支持网页语音，用键盘上的麦克风键就行', saveFail:'没存上', clip:'收一篇', clipPh:'贴一个网页链接', clipBusy:'正在读这篇文章并整理…', clipDone:'已存进剪藏', exportV:'导出笔记库', exportTip:'拿到一个 zip，Obsidian 或其他笔记软件都能直接打开', shareAddr:'分享地址', shareTip:'粘到快捷指令里，手机上分享文章就能直接存进来', copyAddr:'复制地址', addrCopied:'地址已复制',
-      spriteApp:'把「小精灵」装进 Safari 分享菜单', spriteAppTip:'一次装好，以后任何网页分享 → 小精灵就长在这一页（不用任何扩展）', spriteCode:'复制小精灵书签', spriteCodeTip:'粘到地址栏存成书签，点一下就出来', spriteCopied:'连接码已复制 —— 去 Safari 存成书签', spriteNew:'新', spriteBusy:'正在为你签一个快捷指令…', spriteDl:'直接下载快捷指令文件', spriteDlTip:'如果上面没弹出导入界面，就用这个，下完点一下文件',
+      spriteApp:'下载小精灵快捷指令', spriteAppTip:'下完在「下载」里点那个文件 → 添加快捷指令；以后分享任何网页都能叫出小精灵', spriteCode:'复制小精灵书签', spriteCodeTip:'粘到地址栏存成书签，点一下就出来', spriteCopied:'连接码已复制 —— 去 Safari 存成书签', spriteNew:'新', spriteBusy:'正在为你签一个快捷指令…', spriteJsCopied:'脚本已复制 —— 快捷指令里新建「在网页上运行 JavaScript」粘进去', spriteDl:'复制脚本（不装快捷指令时的备选）', spriteDlTip:'快捷指令里新建一个「在网页上运行 JavaScript」，把这段粘进去也行',
     },
     en: { hi:'What do you need?', hp:'Screenshots, files and voice all work. Every answer is saved into your notes.',
       ph:'Message…', hint:'A model is picked for you — no choosing', notes:'Notes', settings:'Settings',
-      spriteApp:'Add the sprite to Safari’s share sheet', spriteAppTip:'Install once — then share any page and the sprite appears on it (no extension)', spriteCode:'Copy the sprite bookmark', spriteCodeTip:'Paste it into the address bar and save it as a bookmark', spriteCopied:'Link copied — save it as a bookmark in Safari', spriteNew:'new', spriteBusy:'Signing your shortcut…', spriteDl:'Download the shortcut file instead', spriteDlTip:'If the import sheet did not appear, download it and tap the file',
+      spriteApp:'Download the sprite shortcut', spriteAppTip:'Tap the downloaded file → Add Shortcut; after that you can call the sprite on any shared page', spriteCode:'Copy the sprite bookmark', spriteCodeTip:'Paste it into the address bar and save it as a bookmark', spriteCopied:'Link copied — save it as a bookmark in Safari', spriteNew:'new', spriteBusy:'Signing your shortcut…', spriteJsCopied:'Script copied — paste it into a “Run JavaScript on Web Page” action', spriteDl:'Copy the script instead', spriteDlTip:'Make a shortcut yourself with “Run JavaScript on Web Page” and paste this in',
       send:'Send', thinking:'Thinking…', copy:'Copy', copied:'Copied', retry:'Retry', del:'Delete',
       gateTitle:'Your brain, on your phone', gateSub:'Enter an email to start. 7 days free, then $8/month. No model picking.',
       gateBtn:'Start', gateMail:'Your email', gateTip:'The same email is the same account on desktop and phone', howto:'Add to Home Screen?', sprite:'Want the sprite on every page?',
@@ -833,17 +833,20 @@
     };
     $('#mSpriteApp').onclick = async () => {
       const b = await ensureBase();
+      // iOS 26 起不再支持 shortcuts:// 自助导入（会弹「The shortcut URL provided was invalid」），
+      // 只剩「下载 → 点文件」这一条路，所以这里老老实实给下载。
       const url = b + '/sprite/shortcut?token=' + encodeURIComponent(store.k);
       toast(T.spriteBusy || '正在准备…');
-      // 直接唤起快捷指令的导入面板（比自己下载再点文件少两步）
-      const scheme = 'shortcuts://import-shortcut?url=' + encodeURIComponent(url) + '&name=' + encodeURIComponent('Sidebrain 小精灵');
-      location.href = scheme;
-      // 没弹出来（比如系统拦了自定义 scheme）就退到普通下载
-      setTimeout(() => { try { if (!document.hidden) window.open(url, '_blank'); } catch (_) {} }, 2200);
+      const w = window.open(url, '_blank');
+      if (!w) location.href = url;
     };
     $('#mSpriteDl').onclick = async () => {
       const b = await ensureBase();
-      window.open(b + '/sprite/shortcut?token=' + encodeURIComponent(store.k), '_blank');
+      try {
+        const js = await (await fetch(b + '/sprite/js?token=' + encodeURIComponent(store.k))).text();
+        await navigator.clipboard.writeText(js);
+        toast(T.spriteJsCopied);
+      } catch (_) { toast(T.spriteBusy || '没取到脚本，过一下再点'); }
     };
     $('#mSpriteCode').onclick = async () => {
       const b = await ensureBase();
