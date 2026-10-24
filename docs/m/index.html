@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sidebrain">
+<meta name="theme-color" content="#0d0f13">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Sidebrain</title>
+<style>
+  :root{
+    --bg:#0d0f13; --bg2:#14171c; --bg3:#1b1f26; --line:#262b33;
+    --fg:#e8ebf0; --dim:#8b93a1; --accent:#5b8cff; --accent2:#8b5cf6;
+    --ok:#38d39f; --warn:#f5a524; --err:#ff6b6b;
+    --sb: env(safe-area-inset-bottom, 0px);
+    --st: env(safe-area-inset-top, 0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB",system-ui,sans-serif;
+    -webkit-text-size-adjust:100%}
+  button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+  input,textarea{font:inherit;color:inherit;background:none;border:0;outline:none}
+  #app{display:flex;flex-direction:column;height:100dvh;height:100vh}
+  @supports (height:100dvh){#app{height:100dvh}}
+
+  /* 顶栏 */
+  header{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:calc(var(--st) + 10px) 14px 10px;
+    background:rgba(13,15,19,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);z-index:5}
+  .brand{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+  .dot{width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+    box-shadow:0 0 14px rgba(91,140,255,.45);display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;flex:0 0 auto}
+  .brand b{font-size:15.5px;letter-spacing:.2px}
+  .brand span{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hbtn{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:17px;color:var(--fg);background:var(--bg2)}
+  .hbtn:active{background:var(--bg3)}
+
+  /* 消息 */
+  #feed{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 6px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
+  .row{display:flex;gap:8px;max-width:100%}
+  .row.me{justify-content:flex-end}
+  .bub{max-width:82%;padding:10px 13px;border-radius:16px;background:var(--bg2);border:1px solid var(--line);
+    white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;font-size:15px}
+  .row.me .bub{background:linear-gradient(135deg,#2f5fe0,#4c7bf5);border-color:transparent;color:#fff;border-bottom-right-radius:6px}
+  .row.ai .bub{border-bottom-left-radius:6px}
+  .bub p{margin:0 0 8px}.bub p:last-child{margin-bottom:0}
+  .bub pre{background:#0a0c10;border:1px solid var(--line);border-radius:10px;padding:9px 11px;overflow-x:auto;font-size:12.5px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin:6px 0}
+  .bub code{background:#0a0c10;border-radius:5px;padding:1px 5px;font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .bub pre code{background:none;padding:0}
+  .bub h1,.bub h2,.bub h3{font-size:15.5px;margin:10px 0 6px}
+  .bub ul,.bub ol{margin:6px 0;padding-left:20px}
+  .bub a{color:#9dbaff}
+  .bub img{max-width:100%;border-radius:10px;margin:6px 0;display:block}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;font-size:11.5px;color:var(--dim)}
+  .meta button{color:var(--dim);padding:4px 8px;border-radius:8px;background:#191d24}
+  .meta button:active{background:var(--bg3)}
+  .att-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:9px;background:#0f1419;
+    border:1px solid var(--line);font-size:12px;color:#a9b2c0;margin-top:6px}
+  .att-chip img{width:40px;height:40px;object-fit:cover;border-radius:6px}
+
+  /* 等待 */
+  .typing{display:flex;gap:5px;padding:4px 2px}
+  .typing i{width:7px;height:7px;border-radius:50%;background:var(--dim);animation:blink 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+
+  /* 空状态 */
+  .hello{margin:auto 0;text-align:center;color:var(--dim);padding:10px 6px 0}
+  .hello h1{font-size:22px;color:var(--fg);margin:0 0 8px;letter-spacing:.2px}
+  .hello p{margin:0 0 16px;font-size:13.5px}
+  .quick{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+  .quick button{padding:9px 13px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);font-size:13.5px;color:#cdd4e0}
+  .quick button:active{background:var(--bg3)}
+
+  /* 输入区 */
+  #composer{flex:0 0 auto;padding:8px 12px calc(var(--sb) + 10px);background:rgba(13,15,19,.96);
+    backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+  .attbar{display:flex;gap:8px;flex-wrap:wrap;padding:0 2px 8px}
+  .attbar:empty{display:none}
+  .chip{display:flex;align-items:center;gap:7px;background:var(--bg2);border:1px solid var(--line);border-radius:11px;
+    padding:5px 9px;font-size:12px;color:#b9c1cf;max-width:100%}
+  .chip img{width:34px;height:34px;border-radius:7px;object-fit:cover}
+  .chip b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px}
+  .chip span{color:var(--dim)}
+  .chip .x{color:var(--dim);padding:0 2px;font-size:14px}
+  .box{display:flex;align-items:flex-end;gap:8px;background:var(--bg2);border:1px solid var(--line);border-radius:20px;padding:6px 6px 6px 12px}
+  .box textarea{flex:1;resize:none;max-height:130px;padding:7px 0;font-size:15.5px;line-height:1.45;background:none}
+  .box textarea::placeholder{color:#5f6875}
+  .icon{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:17px;color:var(--dim);flex:0 0 auto}
+  .icon:active{background:var(--bg3)}
+  .icon.on{color:var(--accent);background:rgba(91,140,255,.14)}
+  .icon.rec{color:#fff;background:#e5484d;animation:pulse 1.1s infinite}
+  @keyframes pulse{50%{opacity:.55}}
+  #send{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid;place-items:center;color:#fff;font-size:16px;flex:0 0 auto;transition:opacity .15s}
+  #send:disabled{opacity:.35}
+  .hint{text-align:center;font-size:11px;color:#5f6875;padding:6px 0 0}
+
+  /* 面板（笔记/设置）底部抽屉 */
+  .sheet{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;background:var(--bg);
+    transform:translateY(100%);transition:transform .24s cubic-bezier(.32,.72,0,1);visibility:hidden}
+  .sheet.on{transform:translateY(0);visibility:visible}
+  .sheet header{border-bottom:1px solid var(--line)}
+  .sheet .body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px calc(var(--sb) + 16px)}
+  .sheet .body.flush{padding:0}
+  .rowitem{display:flex;align-items:center;gap:10px;padding:13px 4px;border-bottom:1px solid var(--line)}
+  .rowitem:active{background:var(--bg2)}
+  .rowitem .t{flex:1;min-width:0}
+  .rowitem .t b{display:block;font-weight:500;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rowitem .t span{display:block;font-size:11.5px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rowitem .k{color:var(--dim);font-size:13px}
+  .sec{font-size:12px;color:var(--dim);letter-spacing:.4px;margin:18px 2px 6px;text-transform:uppercase}
+  .empty{color:var(--dim);text-align:center;padding:40px 10px;font-size:13.5px}
+  .btn{display:block;width:100%;padding:13px;border-radius:13px;background:var(--bg2);border:1px solid var(--line);
+    text-align:center;font-size:15px;margin:8px 0}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;color:#fff;font-weight:600}
+  .btn:active{filter:brightness(1.15)}
+  .note-title{font-size:12.5px;color:var(--dim);padding:2px 2px 10px;border-bottom:1px solid var(--line);margin-bottom:12px;word-break:break-all}
+  .note{white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;font-size:15px;line-height:1.62}
+  .note h1,.note h2,.note h3{color:#fff;margin:16px 0 8px;line-height:1.3}
+  .note h1{font-size:20px}.note h2{font-size:17.5px}.note h3{font-size:16px}
+  .note ul,.note ol{padding-left:22px}
+  .note pre{background:#0a0c10;border:1px solid var(--line);border-radius:10px;padding:10px;overflow-x:auto;font-size:12.5px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}
+  .note code{background:#0a0c10;padding:1px 5px;border-radius:5px;font-size:12.5px}
+  .note blockquote{border-left:3px solid var(--accent);margin:8px 0;padding:2px 0 2px 11px;color:#b9c1cf}
+  .note hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+  .note .nl{color:#9dbaff;text-decoration:underline;text-underline-offset:2px}
+  .note .back{margin-top:18px;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px;color:var(--dim)}
+  .note .back b{color:#b9c1cf;font-weight:500;display:block;margin-bottom:6px}
+  .note .back .nl{display:inline-block;margin:0 8px 6px 0}
+  .ninputs{display:flex;flex-direction:column;gap:9px;margin:10px 0}
+  .ninputs input,.ninputs textarea{background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:11px 12px;
+    font-size:14.5px;color:var(--fg);width:100%}
+  .ninputs textarea{min-height:44vh;font-size:14px;line-height:1.6;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .toast{position:fixed;left:50%;bottom:calc(var(--sb) + 90px);transform:translate(-50%,20px);background:#22272f;color:#fff;
+    padding:10px 16px;border-radius:12px;font-size:13.5px;opacity:0;transition:.25s;z-index:90;pointer-events:none;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);max-width:86vw;text-align:center}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+
+  /* 登录 */
+  #gate{position:fixed;inset:0;z-index:60;background:radial-gradient(120% 80% at 50% 0%,#1a2030 0%,var(--bg) 58%);
+    display:flex;flex-direction:column;justify-content:center;padding:calc(var(--st) + 20px) 26px calc(var(--sb) + 26px)}
+  #gate.hide{display:none}
+  #gate .logo{width:64px;height:64px;border-radius:19px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid;place-items:center;font-size:30px;margin-bottom:22px;box-shadow:0 14px 40px rgba(91,140,255,.32)}
+  #gate h1{font-size:27px;margin:0 0 8px;line-height:1.2;letter-spacing:-.3px}
+  #gate p{color:var(--dim);margin:0 0 26px;font-size:14px;line-height:1.6}
+  #gate input{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:13px;padding:15px 15px;font-size:16px;
+    color:var(--fg);margin-bottom:12px}
+  #gate .tip{font-size:11.5px;color:#5f6875;margin-top:16px;text-align:center;line-height:1.6}
+  .spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;
+    animation:sp .8s linear infinite;display:inline-block;vertical-align:-3px;margin-right:7px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <div class="dot">S</div>
+      <div style="min-width:0">
+        <b>Sidebrain</b>
+        <span id="sub">连上了</span>
+      </div>
+    </div>
+    <button class="hbtn" id="btnNotes" title="笔记">🗒</button>
+    <button class="hbtn" id="btnMenu" title="设置">⋯</button>
+  </header>
+
+  <div id="feed">
+    <div class="hello" id="hello">
+      <h1 id="h1">要问点什么？</h1>
+      <p id="hp">截图、文件、语音都能直接发进来，回答会自动存进你的笔记库。</p>
+      <div class="quick" id="quick"></div>
+    </div>
+  </div>
+
+  <div id="composer">
+    <div class="attbar" id="attbar"></div>
+    <div class="box">
+      <textarea id="ta" rows="1" placeholder="发消息…"></textarea>
+      <button class="icon" id="btnFile" title="文件">📎</button>
+      <button class="icon" id="btnMic" title="语音">🎤</button>
+      <button id="send" title="发送">↑</button>
+    </div>
+    <div class="hint" id="hint">回答来自自动选中的模型，你不用挑</div>
+  </div>
+</div>
+
+<!-- 笔记 -->
+<div class="sheet" id="noteSheet">
+  <header>
+    <button class="hbtn" id="noteBack">←</button>
+    <div class="brand"><b id="noteTitle">笔记</b><span id="noteSub"></span></div>
+    <button class="hbtn" id="noteNew">＋</button>
+  </header>
+  <div class="body" id="noteBody"></div>
+</div>
+
+<!-- 设置 -->
+<div class="sheet" id="menuSheet">
+  <header>
+    <button class="hbtn" id="menuBack">←</button>
+    <div class="brand"><b>设置</b></div>
+  </header>
+  <div class="body" id="menuBody"></div>
+</div>
+
+<!-- 登录 -->
+<div id="gate" class="hide">
+  <div class="logo">✦</div>
+  <h1 id="gTitle">把脑子装进手机</h1>
+  <p id="gSub">输一个邮箱就开始用。7 天免费，之后 $8 一个月，不用挑模型。</p>
+  <input id="gMail" type="email" inputmode="email" autocomplete="email" placeholder="你的邮箱">
+  <button class="btn primary" id="gGo">开始</button>
+  <div class="tip" id="gTip">同一个邮箱在电脑和手机上都是一个账号</div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="fileWrap" style="display:none"><input type="file" id="file" accept="image/*,text/*,.md,.json,.csv,.txt,.log"></div>
+
+<script>
+(() => {
+  'use strict';
+  const EN = (navigator.language || '').toLowerCase().startsWith('en') && !(navigator.language || '').toLowerCase().startsWith('zh');
+  const T = {
+    zh: { hi:'要问点什么？', hp:'截图、文件、语音都能直接发进来，回答会自动存进你的笔记库。',
+      ph:'发消息…', hint:'回答来自自动选中的模型，你不用挑', notes:'笔记', settings:'设置',
+      send:'发送', thinking:'在想…', copy:'复制', copied:'已复制', retry:'重试', del:'删除',
+      gateTitle:'把脑子装进手机', gateSub:'输一个邮箱就开始用。7 天免费，之后 $8 一个月，不用挑模型。',
+      gateBtn:'开始', gateMail:'你的邮箱', gateTip:'同一个邮箱在电脑和手机上都是一个账号',
+      q1:'帮我总结这个页面', q2:'把这段代码解释一下', q3:'今天有什么值得关注的',
+      empty:'这里还是空的', memo:'今日备忘录', newNote:'新建笔记', save:'保存', cancel:'取消',
+      title:'标题', body:'正文', search:'搜索笔记', readFail:'读不出来', netFail:'网络不通，稍后再试',
+      acctTrial:'试用中', acctActive:'已订阅', days:'天可用', logout:'换个账号', clear:'清空对话',
+      voice:'说话', listening:'听着…', tapStop:'点一下结束', files:'文件', img:'图片', attached:'附件',
+      saved:'已存进笔记', memoBusy:'正在生成今天的备忘录…', memoDone:'备忘录写好了', noNotes:'笔记本里还没有东西',
+      attachments:'附件', voiceUnsupported:'这台设备不支持网页语音，用键盘上的麦克风键就行', saveFail:'没存上',
+    },
+    en: { hi:'What do you need?', hp:'Screenshots, files and voice all work. Every answer is saved into your notes.',
+      ph:'Message…', hint:'A model is picked for you — no choosing', notes:'Notes', settings:'Settings',
+      send:'Send', thinking:'Thinking…', copy:'Copy', copied:'Copied', retry:'Retry', del:'Delete',
+      gateTitle:'Your brain, on your phone', gateSub:'Enter an email to start. 7 days free, then $8/month. No model picking.',
+      gateBtn:'Start', gateMail:'Your email', gateTip:'The same email is the same account on desktop and phone',
+      q1:'Summarize this page', q2:'Explain this code', q3:"What's worth knowing today",
+      empty:'Nothing here yet', memo:"Today's memo", newNote:'New note', save:'Save', cancel:'Cancel',
+      title:'Title', body:'Body', search:'Search notes', readFail:"Couldn't read that", netFail:'Network hiccup, try again',
+      acctTrial:'Trial', acctActive:'Subscribed', days:'days left', logout:'Switch account', clear:'Clear chat',
+      voice:'Speak', listening:'Listening…', tapStop:'Tap to stop', files:'Files', img:'Image', attached:'Attached',
+      saved:'Saved to notes', memoBusy:"Writing today's memo…", memoDone:'Memo ready', noNotes:'Your notebook is empty',
+      attachments:'Attachments', voiceUnsupported:'Voice needs a newer Safari — use the mic key on your keyboard', saveFail:"Couldn't save",
+    }
+  }[EN ? 'en' : 'zh'];
+
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+  // 地址解析：直接开在 Sidebrain 服务器上就用同源；开在 GitHub Pages 上就按 endpoint.json 找当前隧道
+  let base = location.origin;
+  const store = {
+    get k(){ return localStorage.getItem('sb_token') || ''; },
+    set k(v){ v ? localStorage.setItem('sb_token', v) : localStorage.removeItem('sb_token'); },
+  };
+  let ACCT = null;
+  const CHAT_KEY = 'sb_chat_v1';
+
+  function toast(msg, ms = 1900) {
+    const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), ms);
+  }
+
+  let baseReady = null;
+  function ensureBase() {
+    if (!baseReady) baseReady = (async () => {
+      // 自己就是 Sidebrain 服务器？
+      try {
+        const h = await fetch(location.origin + '/health', { cache: 'no-store' });
+        if (h.ok) return location.origin;
+      } catch (_) {}
+      // 不是的话说明这是个静态页（GitHub Pages），按 endpoint.json 找当前隧道
+      for (const f of ['endpoint.json', '../endpoint.json']) {
+        try {
+          const j = await (await fetch(f, { cache: 'no-store' })).json();
+          if (j && j.serverBase) return String(j.serverBase).replace(/\/$/, '');
+        } catch (_) {}
+      }
+      return location.origin;
+    })();
+    return baseReady;
+  }
+
+  async function api(path, body, { method } = {}) {
+    base = await ensureBase();
+    const r = await fetch(base + path, {
+      method: method || (body ? 'POST' : 'GET'),
+      headers: { 'content-type': 'application/json', ...(store.k ? { authorization: 'Bearer ' + store.k } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const txt = await r.text();
+    let j = null; try { j = JSON.parse(txt); } catch (_) { j = { raw: txt }; }
+    if (!r.ok) { const e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; e.data = j; throw e; }
+    return j;
+  }
+
+  /* ---------- Markdown ---------- */
+  function md(s) {
+    let src = esc(s || '');
+    src = src.replace(/```([\s\S]*?)```/g, (_, c) => '<pre>' + c.replace(/^\w*\n/, '') + '</pre>');
+    src = src.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    src = src.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+    src = src.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    const out = []; let list = null;
+    const close = () => { if (list) { out.push('</' + list + '>'); list = null; } };
+    for (const raw of src.split('\n')) {
+      const l = raw.trimEnd();
+      const h = /^(#{1,6})\s+(.*)$/.exec(l);
+      if (h) { close(); out.push('<h' + h[1].length + '>' + h[2] + '</h' + h[1].length + '>'); continue; }
+      if (/^\s*[-*]\s+\[[ xX]\]\s+/.test(l)) {
+        if (list !== 'ul') { close(); out.push('<ul>'); list = 'ul'; }
+        out.push('<li>' + l.replace(/^\s*[-*]\s+\[([ xX])\]\s+/, (_, c) => c === ' ' ? '☐ ' : '☑ ') + '</li>'); continue;
+      }
+      if (/^\s*[-*]\s+/.test(l)) { if (list !== 'ul') { close(); out.push('<ul>'); list = 'ul'; } out.push('<li>' + l.replace(/^\s*[-*]\s+/, '') + '</li>'); continue; }
+      if (/^\s*\d+\.\s+/.test(l)) { if (list !== 'ol') { close(); out.push('<ol>'); list = 'ol'; } out.push('<li>' + l.replace(/^\s*\d+\.\s+/, '') + '</li>'); continue; }
+      close();
+      if (/^>\s?/.test(l)) { out.push('<blockquote>' + l.replace(/^>\s?/, '') + '</blockquote>'); continue; }
+      if (/^---+$/.test(l.trim())) { out.push('<hr>'); continue; }
+      if (!l.trim()) { out.push(''); continue; }
+      out.push('<p>' + l + '</p>');
+    }
+    close();
+    return out.join('\n');
+  }
+
+  /* ---------- 对话 ---------- */
+  let CHAT = [];
+  try { CHAT = JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); } catch (_) { CHAT = []; }
+  const saveChat = () => { try { localStorage.setItem(CHAT_KEY, JSON.stringify(CHAT.slice(-40))); } catch (_) {} };
+
+  const feed = $('#feed');
+  function rowEl(role, text, extra = '') {
+    const wrap = document.createElement('div');
+    wrap.className = 'row ' + (role === 'user' ? 'me' : 'ai');
+    const b = document.createElement('div');
+    b.className = 'bub';
+    b.innerHTML = role === 'user' ? esc(text) : md(text);
+    wrap.appendChild(b);
+    if (extra) b.insertAdjacentHTML('beforeend', extra);
+    return { wrap, bub: b };
+  }
+
+  function paintChat() {
+    feed.querySelectorAll('.row').forEach(n => n.remove());
+    $('#hello').style.display = CHAT.length ? 'none' : '';
+    for (const m of CHAT) {
+      const { wrap, bub } = rowEl(m.role, m.text, attHtml(m.att));
+      if (m.role === 'assistant') addMeta(bub, m);
+      feed.appendChild(wrap);
+    }
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  function attHtml(att) {
+    if (!att) return '';
+    let h = '';
+    if (att.image) h += '<div class="att-chip"><img src="' + att.image + '" alt=""></div>';
+    if (att.files && att.files.length) h += '<div class="att-chip">📄 ' + esc(att.files.map(f => f.name).join(', ')).slice(0, 120) + '</div>';
+    return h;
+  }
+
+  function addMeta(bub, m) {
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.innerHTML =
+      '<button data-a="copy">' + T.copy + '</button>' +
+      (m.saved ? '<span>🗒 ' + T.saved + '</span>' : '') +
+      '<span>' + esc(m.channel || '') + (m.ms ? ' · ' + (m.ms / 1000).toFixed(1) + 's' : '') + '</span>';
+    meta.querySelector('[data-a="copy"]').onclick = async () => {
+      try { await navigator.clipboard.writeText(m.text); toast(T.copied); } catch (_) { toast(T.copied); }
+    };
+    bub.appendChild(meta);
+  }
+
+  /* ---------- 附件 ---------- */
+  const ATT = { image: null, files: [] };
+  const attbar = $('#attbar');
+  function paintAtt() {
+    attbar.innerHTML = '';
+    if (ATT.image) attbar.appendChild(chip('🖼', 'image', ATT.image, ATT.image));
+    ATT.files.forEach((f, i) => attbar.appendChild(chip('📄', f.name, null, null, i)));
+    autoGrow();
+  }
+  function chip(icon, label, img, src, idx) {
+    const c = document.createElement('div');
+    c.className = 'chip';
+    c.innerHTML = (img ? '<img src="' + src + '" alt="">' : '<span>' + icon + '</span>') +
+      '<b>' + esc(label) + '</b><button class="x">✕</button>';
+    c.querySelector('.x').onclick = () => {
+      if (img) ATT.image = null; else ATT.files.splice(idx, 1);
+      paintAtt();
+    };
+    return c;
+  }
+  async function shrink(file) {
+    return new Promise(res => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const MAX = 1400;
+        let { width: w, height: h } = img;
+        const s = Math.min(1, MAX / Math.max(w, h));
+        w = Math.round(w * s); h = Math.round(h * s);
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        res(cv.toDataURL('image/jpeg', 0.86));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); res(null); };
+      img.src = url;
+    });
+  }
+  async function takeFile(f) {
+    if (!f) return;
+    if (/^image\//.test(f.type)) {
+      const d = await shrink(f);
+      if (d) { ATT.image = d; paintAtt(); return; }
+    }
+    const txt = await f.text().catch(() => '');
+    ATT.files.push({ name: f.name, text: (txt || '').slice(0, 60000) });
+    paintAtt();
+  }
+  $('#btnFile').onclick = () => $('#file').click();
+  $('#file').onchange = async e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; await takeFile(f); };
+
+  // 粘贴
+  document.addEventListener('paste', async e => {
+    const it = [...(e.clipboardData && e.clipboardData.items || [])];
+    for (const i of it) if (i.kind === 'file') { const f = i.getAsFile(); if (f) { await takeFile(f); e.preventDefault(); } }
+  });
+
+  /* ---------- 语音 ---------- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null, recOn = false;
+  const mic = $('#btnMic');
+  mic.onclick = () => {
+    if (!SR) { toast(T.voiceUnsupported, 2600); return; }
+    if (recOn) { try { rec.stop(); } catch (_) {} return; }
+    rec = new SR();
+    rec.lang = (navigator.language || 'zh-CN');
+    rec.interimResults = true;
+    rec.continuous = false;
+    const ta = $('#ta'); const before = ta.value;
+    rec.onstart = () => { recOn = true; mic.classList.add('rec'); toast(T.listening, 9000); };
+    rec.onresult = e => {
+      let s = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) s += e.results[i][0].transcript;
+      ta.value = (before ? before + ' ' : '') + s; autoGrow();
+    };
+    rec.onerror = () => { toast(T.voiceUnsupported, 2400); };
+    rec.onend = () => { recOn = false; mic.classList.remove('rec'); autoGrow(); };
+    try { rec.start(); } catch (_) {}
+  };
+
+  /* ---------- 输入框 ---------- */
+  const ta = $('#ta');
+  function autoGrow() { ta.style.height = 'auto'; ta.style.height = Math.min(130, ta.scrollHeight) + 'px'; }
+  ta.addEventListener('input', autoGrow);
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+  });
+  $('#send').onclick = send;
+
+  /* ---------- 发送 ---------- */
+  let busy = false;
+  async function send() {
+    const text = ta.value.trim();
+    if (busy) return;
+    if (!text && !ATT.image && !ATT.files.length) return;
+    busy = true; $('#send').disabled = true;
+    const att = { image: ATT.image, files: ATT.files.slice() };
+    const shown = text || (att.image ? '📷 ' + T.img : '📄 ' + att.files.map(f => f.name).join(', '));
+    const msg = { role: 'user', text: shown, att: { image: att.image, files: att.files.map(f => ({ name: f.name })) } };
+    CHAT.push(msg);
+    const { wrap } = rowEl('user', shown, attHtml(msg.att));
+    feed.appendChild(wrap);
+    $('#hello').style.display = 'none';
+    ta.value = ''; ATT.image = null; ATT.files = []; paintAtt(); autoGrow();
+    feed.scrollTop = feed.scrollHeight;
+
+    const wait = document.createElement('div');
+    wait.className = 'row ai';
+    wait.innerHTML = '<div class="bub"><div class="typing"><i></i><i></i><i></i></div></div>';
+    feed.appendChild(wait);
+    feed.scrollTop = feed.scrollHeight;
+
+    const payload = {
+      messages: CHAT.filter(m => m.role === 'user' || m.role === 'assistant').slice(-12).map(m => ({ role: m.role, content: m.text })),
+      image: att.image ? { dataUrl: att.image } : null,
+      files: att.files,
+      url: '',
+      title: document.title,
+    };
+    // 用户那条的真实文字（带附件时 text 可能是占位）
+    const lastMsg = payload.messages[payload.messages.length - 1];
+    if (lastMsg && !text) lastMsg.content = (att.image ? '[图片] ' : '') + (att.files.map(f => '[文件] ' + f.name).join(' ') || '看图');
+
+    try {
+      const r = await api('/v1/chat', payload);
+      wait.remove();
+      CHAT.push({ role: 'assistant', text: r.text, channel: r.channel, ms: r.ms, saved: r.saved, kind: r.kind });
+      const { wrap: w2, bub } = rowEl('assistant', r.text);
+      addMeta(bub, CHAT[CHAT.length - 1]);
+      feed.appendChild(w2);
+      if (r.saved) toast('🗒 ' + T.saved, 1500);
+    } catch (e) {
+      wait.remove();
+      const note = e.status === 402 ? '试用结束了，去 /join 订阅（$8/月）' : (e.message || T.netFail);
+      const { wrap: w3, bub } = rowEl('assistant', '⚠️ ' + note);
+      const again = document.createElement('div');
+      again.className = 'meta';
+      again.innerHTML = '<button>' + T.retry + '</button>';
+      again.querySelector('button').onclick = () => { w3.remove(); CHAT.pop(); ta.value = shown; send(); };
+      bub.appendChild(again);
+      feed.appendChild(w3);
+    }
+    busy = false; $('#send').disabled = false;
+    saveChat();
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  /* ---------- 账号 ---------- */
+  async function refreshAcct() {
+    try {
+      ACCT = await api('/account');
+      const left = ACCT.daysLeft != null ? Math.max(0, Math.ceil(ACCT.daysLeft)) : null;
+      $('#sub').textContent = ACCT.plan === 'active' ? '✓ ' + T.acctActive + ' · ' + (ACCT.email || '') :
+        (T.acctTrial + ' · ' + (left != null ? left + ' ' + T.days : '') );
+      $('#gate').classList.add('hide');
+      return true;
+    } catch (e) {
+      if (e.status === 401 || e.status === 404) { store.k = ''; $('#gate').classList.remove('hide'); }
+      $('#sub').textContent = e.status ? '需要登录' : T.netFail;
+      if (!e.status) console.warn('[sidebrain] 连不上', base);
+      return false;
+    }
+  }
+  $('#gGo').onclick = async () => {
+    const mail = $('#gMail').value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { toast(T.gateMail + '?'); return; }
+    const b = $('#gGo');
+    b.disabled = true; b.innerHTML = '<span class="spin"></span>' + T.gateBtn;
+    try {
+      const r = await api('/account/signup', { email: mail });
+      store.k = r.token;
+      await refreshAcct();
+      paintQuick();
+      toast('✦ 好，开始用');
+    } catch (e) {
+      toast(T.netFail);
+    } finally { b.disabled = false; b.textContent = T.gateBtn; }
+  };
+  $('#gMail').addEventListener('keydown', e => { if (e.key === 'Enter') $('#gGo').click(); });
+
+  /* ---------- 快捷问题 ---------- */
+  function paintQuick() {
+    const q = $('#quick'); q.innerHTML = '';
+    [T.q1, T.q2, T.q3].forEach(s => {
+      const b = document.createElement('button');
+      b.textContent = s;
+      b.onclick = () => { ta.value = s; send(); };
+      q.appendChild(b);
+    });
+  }
+
+  /* ---------- 笔记 ---------- */
+  const sheet = $('#noteSheet'), nbody = $('#noteBody');
+  let NOTE_STACK = [];
+  const openSheet = s => s.classList.add('on');
+  const closeSheet = s => s.classList.remove('on');
+  $('#btnNotes').onclick = () => { openSheet(sheet); noteList(''); };
+  $('#noteBack').onclick = () => {
+    if (NOTE_STACK.length) { NOTE_STACK.pop(); noteRender(NOTE_STACK, false); }
+    else closeSheet(sheet);
+  };
+  function noteSub(t) { $('#noteSub').textContent = t || ''; }
+
+  async function noteList(dir) {
+    noteSub('');
+    $('#noteTitle').textContent = T.notes;
+    nbody.classList.remove('flush');
+    nbody.innerHTML = '<div class="empty">…</div>';
+    try {
+      const r = await api('/vault/list', { dir: dir || '' });
+      const items = (r.notes || []).filter(n => !/^\./.test(n.name));
+      const html = [];
+      html.push('<div class="rowitem" id="memoBtn"><div class="t"><b>📅 ' + T.memo + '</b><span>' + new Date().toISOString().slice(0, 10) + '</span></div><div class="k">›</div></div>');
+      html.push('<div class="rowitem" id="searchBtn"><div class="t"><b>🔍 ' + T.search + '</b></div><div class="k">›</div></div>');
+      if (dir) html.push('<div class="rowitem" data-dir=".."><div class="t"><b>📁 ..</b></div><div class="k">›</div></div>');
+      if (!items.length) html.push('<div class="empty">' + T.noNotes + '</div>');
+      for (const n of items) {
+        if (n.type === 'dir') html.push('<div class="rowitem" data-dir="' + esc(n.path) + '"><div class="t"><b>📁 ' + esc(n.name) + '</b></div><div class="k">›</div></div>');
+        else html.push('<div class="rowitem" data-note="' + esc(n.path) + '"><div class="t"><b>' + esc(n.title || n.name) + '</b><span>' + esc(n.path) + '</span></div><div class="k">›</div></div>');
+      }
+      nbody.innerHTML = html.join('');
+      if (dir) NOTE_STACK.push({ type: 'list', dir });
+      nbody.querySelectorAll('[data-note]').forEach(el => el.onclick = () => openNote(el.dataset.note));
+      nbody.querySelectorAll('[data-dir]').forEach(el => el.onclick = () => noteList(el.dataset.dir === '..' ? (dir || '').replace(/\/?[^/]*\/?$/, '') : el.dataset.dir));
+      const mb = nbody.querySelector('#memoBtn'); if (mb) mb.onclick = makeMemo;
+      const sb = nbody.querySelector('#searchBtn'); if (sb) sb.onclick = noteSearch;
+    } catch (e) {
+      nbody.innerHTML = '<div class="empty">' + esc(e.message || T.readFail) + '</div>';
+    }
+  }
+
+  async function noteSearch() {
+    $('#noteTitle').textContent = T.search;
+    nbody.innerHTML = '<div class="ninputs"><input id="sq" placeholder="' + T.search + '" autofocus></div><div id="sres"></div>';
+    const inp = nbody.querySelector('#sq');
+    let t = null;
+    const run = async () => {
+      const q = inp.value.trim();
+      if (!q) return;
+      const box = nbody.querySelector('#sres');
+      box.innerHTML = '<div class="empty">…</div>';
+      try {
+        const r = await api('/vault/search', { q });
+        const hits = r.hits || [];
+        box.innerHTML = hits.length ? hits.map(h =>
+          '<div class="rowitem" data-note="' + esc(h.path) + '"><div class="t"><b>' + esc(h.title || h.path) + '</b><span>' + esc((h.excerpt || '').slice(0, 90)) + '</span></div><div class="k">›</div></div>'
+        ).join('') : '<div class="empty">' + T.empty + '</div>';
+        box.querySelectorAll('[data-note]').forEach(el => el.onclick = () => openNote(el.dataset.note));
+      } catch (e) { box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+    };
+    inp.addEventListener('input', () => { clearTimeout(t); t = setTimeout(run, 350); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(t); run(); } });
+  }
+
+  async function openNote(path) {
+    $('#noteTitle').textContent = '笔记';
+    nbody.classList.remove('flush');
+    nbody.innerHTML = '<div class="empty">…</div>';
+    try {
+      const r = await api('/vault/read', { path });
+      NOTE_STACK.push({ type: 'note', path });
+      const back = (r.backlinks || []);
+      nbody.innerHTML =
+        '<div class="note-title">' + esc(r.path) + ' · ' + (r.size || 0) + ' 字</div>' +
+        '<div class="note" id="ncontent">' + noteMd(r.body || '') + '</div>' +
+        (back.length ? '<div class="back"><b>↩ 被 ' + back.length + ' 篇引用</b>' + back.map(b => '<span class="nl" data-note="' + esc(b.path || b) + '">' + esc(b.title || b.path || b) + '</span>').join('') + '</div>' : '') +
+        '<div class="btn" id="nEdit">✎ 编辑</div>' +
+        '<div class="btn" id="nAppend">＋ 追加</div>' +
+        '<div class="btn" id="nDel" style="color:#ff8080">🗑 删除</div>';
+      nbody.querySelectorAll('[data-note]').forEach(el => el.onclick = () => openNote(el.dataset.note));
+      nbody.querySelector('#nEdit').onclick = () => noteEdit(r.path, r.body);
+      nbody.querySelector('#nAppend').onclick = () => noteAppend(r.path, r.body);
+      nbody.querySelector('#nDel').onclick = async () => {
+        if (!confirm('删除 ' + r.path + '？会先备份。')) return;
+        try { await api('/vault/delete', { path: r.path }); toast('已删除'); NOTE_STACK.pop(); noteRender(NOTE_STACK, false); }
+        catch (e) { toast(e.message); }
+      };
+    } catch (e) {
+      nbody.innerHTML = '<div class="empty">' + esc(e.message || T.readFail) + '</div>';
+    }
+  }
+
+  // 笔记正文的 Markdown 渲染 + 双链
+  function noteMd(body) {
+    let s = String(body || '').replace(/^---\n[\s\S]*?\n---\n/, '');
+    let h = md(s);
+    h = h.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, note, label) => '<span class="nl" data-note="' + note.trim() + '">' + (label || note).trim() + '</span>');
+    return h;
+  }
+  // 双链点击（正文里动态插入的）
+  nbody.addEventListener('click', e => {
+    const el = e.target.closest && e.target.closest('.nl[data-note]');
+    if (el) openNote(el.dataset.note.replace(/\.md$/, '') + '.md');
+  });
+
+  function noteRender(stack, pushList) {
+    if (!stack.length) { closeSheet(sheet); return; }
+    const last = stack[stack.length - 1];
+    if (last.type === 'list') noteList(last.dir || '');
+    else openNote(last.path);
+  }
+
+  function noteEdit(path, body) {
+    $('#noteTitle').textContent = '编辑';
+    nbody.innerHTML =
+      '<div class="ninputs"><textarea id="neBody">' + esc(body || '') + '</textarea></div>' +
+      '<div class="btn primary" id="neSave">' + T.save + '</div><div class="btn" id="neCancel">' + T.cancel + '</div>';
+    nbody.querySelector('#neBody').style.minHeight = '52vh';
+    nbody.querySelector('#neCancel').onclick = () => { NOTE_STACK.pop(); noteRender(NOTE_STACK); };
+    nbody.querySelector('#neSave').onclick = async () => {
+      const b = nbody.querySelector('#neBody').value;
+      try {
+        await api('/vault/write', { path, body: b });
+        toast('✓ ' + T.save);
+        NOTE_STACK.pop(); noteRender(NOTE_STACK); openNote(path);
+      } catch (e) { toast(T.saveFail); }
+    };
+  }
+
+  function noteAppend(path, body) {
+    $('#noteTitle').textContent = '追加';
+    nbody.innerHTML =
+      '<div class="note-title">' + esc(path) + '</div>' +
+      '<div class="ninputs"><textarea id="naBody" placeholder="接在后面写点什么…"></textarea></div>' +
+      '<div class="btn primary" id="naSave">' + T.save + '</div><div class="btn" id="naCancel">' + T.cancel + '</div>';
+    nbody.querySelector('#naCancel').onclick = () => noteRender(NOTE_STACK);
+    nbody.querySelector('#naSave').onclick = async () => {
+      const add = nbody.querySelector('#naBody').value.trim();
+      if (!add) return;
+      try {
+        const r = await api('/vault/read', { path });
+        await api('/vault/write', { path, body: (r.body || '').replace(/\s*$/, '') + '\n\n' + add + '\n' });
+        toast('✓ ' + T.save);
+        noteRender(NOTE_STACK);
+        openNote(path);
+      } catch (e) { toast(T.saveFail); }
+    };
+  }
+
+  $('#noteNew').onclick = () => {
+    $('#noteTitle').textContent = T.newNote;
+    nbody.innerHTML =
+      '<div class="ninputs"><input id="nnPath" placeholder="' + T.title + '（可写 文件夹/名字）"></div>' +
+      '<div class="ninputs"><textarea id="nnBody" placeholder="' + T.body + '…"></textarea></div>' +
+      '<div class="btn primary" id="nnSave">' + T.save + '</div><div class="btn" id="nnCancel">' + T.cancel + '</div>';
+    nbody.querySelector('#nnBody').style.minHeight = '44vh';
+    nbody.querySelector('#nnCancel').onclick = () => noteList('');
+    nbody.querySelector('#nnSave').onclick = async () => {
+      let p = nbody.querySelector('#nnPath').value.trim();
+      const b = nbody.querySelector('#nnBody').value;
+      if (!p) { toast(T.title + '?'); return; }
+      if (!/\.md$/.test(p)) p += '.md';
+      try { await api('/vault/write', { path: p, body: b }); toast('✓'); noteList(''); openNote(p); }
+      catch (e) { toast(T.saveFail); }
+    };
+  };
+
+  async function makeMemo() {
+    toast(T.memoBusy, 6000);
+    try {
+      const r = await api('/vault/memo', {});
+      toast('✓ ' + T.memoDone);
+      if (r.path) openNote(r.path);
+    } catch (e) { toast(e.message || T.saveFail); }
+  }
+
+  /* ---------- 设置 ---------- */
+  const menuSheet = $('#menuSheet');
+  $('#btnMenu').onclick = () => { openSheet(menuSheet); paintMenu(); };
+  $('#menuBack').onclick = () => closeSheet(menuSheet);
+  function paintMenu() {
+    const left = ACCT && ACCT.daysLeft != null ? Math.max(0, Math.ceil(ACCT.daysLeft)) : null;
+    $('#menuBody').innerHTML =
+      '<div class="sec">账号</div>' +
+      '<div class="rowitem"><div class="t"><b>' + esc(ACCT && ACCT.email || '—') + '</b><span>' +
+        (ACCT ? (ACCT.plan === 'active' ? T.acctActive : T.acctTrial + ' · ' + (left != null ? left + ' ' + T.days : '')) : '') + '</span></div></div>' +
+      '<div class="sec">用</div>' +
+      '<div class="rowitem" id="mNotes"><div class="t"><b>🗒 ' + T.notes + '</b></div><div class="k">›</div></div>' +
+      '<div class="rowitem" id="mClear"><div class="t"><b>🧹 ' + T.clear + '</b></div><div class="k">›</div></div>' +
+      '<div class="rowitem" id="mLogout"><div class="t"><b>👤 ' + T.logout + '</b></div><div class="k">›</div></div>' +
+      '<div class="sec">关于</div>' +
+      '<div class="rowitem"><div class="t"><b>Sidebrain</b><span>' + (EN ? 'Routes each message to the cheapest model that fits. Notes stay in plain Markdown.' : '每条消息自动交给最合适又最便宜的模型。笔记就是普通 Markdown 文件。') + '</span></div></div>' +
+      '<div class="hint" style="padding-top:16px">' + (EN ? 'Tip: Share → Add to Home Screen to use it like an app.' : '提示：点 Safari 的分享 → 添加到主屏幕，用起来就跟 App 一样。') + '</div>';
+    $('#mNotes').onclick = () => { closeSheet(menuSheet); openSheet(sheet); noteList(''); };
+    $('#mClear').onclick = () => {
+      if (!confirm(T.clear + '?')) return;
+      CHAT = []; saveChat(); paintChat(); closeSheet(menuSheet); toast('✓');
+    };
+    $('#mLogout').onclick = async () => {
+      store.k = '';
+      CHAT = []; saveChat(); paintChat();
+      closeSheet(menuSheet);
+      $('#gMail').value = (ACCT && ACCT.email) || '';
+      $('#gate').classList.remove('hide');
+    };
+  }
+
+  /* ---------- 启动 ---------- */
+  document.documentElement.lang = EN ? 'en' : 'zh';
+  $('#h1').textContent = T.hi; $('#hp').textContent = T.hp;
+  ta.placeholder = T.ph; $('#hint').textContent = T.hint;
+  $('#gTitle').textContent = T.gateTitle; $('#gSub').textContent = T.gateSub;
+  $('#gGo').textContent = T.gateBtn; $('#gMail').placeholder = T.gateMail; $('#gTip').textContent = T.gateTip;
+  paintQuick();
+  paintChat();
+  if (store.k) refreshAcct(); else $('#gate').classList.remove('hide');
+  setInterval(() => { if (store.k && !ACCT) refreshAcct(); }, 60000);
+  window.addEventListener('online', () => refreshAcct());
+})();
+</script>
+</body>
+</html>
