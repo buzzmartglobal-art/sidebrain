@@ -245,11 +245,11 @@
       voice:'说话', listening:'听着…', tapStop:'点一下结束', files:'文件', img:'图片', attached:'附件',
       saved:'已存进笔记', memoBusy:'正在生成今天的备忘录…', memoDone:'备忘录写好了', noNotes:'笔记本里还没有东西',
       attachments:'附件', voiceUnsupported:'这台设备不支持网页语音，用键盘上的麦克风键就行', saveFail:'没存上', clip:'收一篇', clipPh:'贴一个网页链接', clipBusy:'正在读这篇文章并整理…', clipDone:'已存进剪藏', exportV:'导出笔记库', exportTip:'拿到一个 zip，Obsidian 或其他笔记软件都能直接打开', shareAddr:'分享地址', shareTip:'粘到快捷指令里，手机上分享文章就能直接存进来', copyAddr:'复制地址', addrCopied:'地址已复制',
-      spriteApp:'下载小精灵快捷指令', spriteAppTip:'下完在「下载」里点那个文件 → 添加快捷指令；以后分享任何网页都能叫出小精灵', spriteCode:'复制小精灵书签', spriteCodeTip:'粘到地址栏存成书签，点一下就出来', spriteCopied:'连接码已复制 —— 去 Safari 存成书签', spriteNew:'新', spriteBusy:'正在为你签一个快捷指令…', spriteJsCopied:'脚本已复制 —— 快捷指令里新建「在网页上运行 JavaScript」粘进去', spriteDl:'复制脚本（不装快捷指令时的备选）', spriteDlTip:'快捷指令里新建一个「在网页上运行 JavaScript」，把这段粘进去也行',
+      spriteLive:'一键常驻：每个网页都有它', spriteLiveTip:'装一次（Userscripts 扩展，免费开源），之后打开任何网页右下角都有小精灵', spriteApp:'下载小精灵快捷指令', spriteAppTip:'下完在「下载」里点那个文件 → 添加快捷指令；以后分享任何网页都能叫出小精灵', spriteCode:'复制小精灵书签', spriteCodeTip:'粘到地址栏存成书签，点一下就出来', spriteCopied:'连接码已复制 —— 去 Safari 存成书签', spriteNew:'新', spriteBusy:'正在为你签一个快捷指令…', spriteJsCopied:'脚本已复制 —— 快捷指令里新建「在网页上运行 JavaScript」粘进去', spriteDl:'复制脚本（不装快捷指令时的备选）', spriteDlTip:'快捷指令里新建一个「在网页上运行 JavaScript」，把这段粘进去也行',
     },
     en: { hi:'What do you need?', hp:'Screenshots, files and voice all work. Every answer is saved into your notes.',
       ph:'Message…', hint:'A model is picked for you — no choosing', notes:'Notes', settings:'Settings',
-      spriteApp:'Download the sprite shortcut', spriteAppTip:'Tap the downloaded file → Add Shortcut; after that you can call the sprite on any shared page', spriteCode:'Copy the sprite bookmark', spriteCodeTip:'Paste it into the address bar and save it as a bookmark', spriteCopied:'Link copied — save it as a bookmark in Safari', spriteNew:'new', spriteBusy:'Signing your shortcut…', spriteJsCopied:'Script copied — paste it into a “Run JavaScript on Web Page” action', spriteDl:'Copy the script instead', spriteDlTip:'Make a shortcut yourself with “Run JavaScript on Web Page” and paste this in',
+      spriteLive:'Make it live on every page', spriteLiveTip:'Install once with the free Userscripts extension — then the sprite is on every page you open', spriteApp:'Download the sprite shortcut', spriteAppTip:'Tap the downloaded file → Add Shortcut; after that you can call the sprite on any shared page', spriteCode:'Copy the sprite bookmark', spriteCodeTip:'Paste it into the address bar and save it as a bookmark', spriteCopied:'Link copied — save it as a bookmark in Safari', spriteNew:'new', spriteBusy:'Signing your shortcut…', spriteJsCopied:'Script copied — paste it into a “Run JavaScript on Web Page” action', spriteDl:'Copy the script instead', spriteDlTip:'Make a shortcut yourself with “Run JavaScript on Web Page” and paste this in',
       send:'Send', thinking:'Thinking…', copy:'Copy', copied:'Copied', retry:'Retry', del:'Delete',
       gateTitle:'Your brain, on your phone', gateSub:'Enter an email to start. 7 days free, then $8/month. No model picking.',
       gateBtn:'Start', gateMail:'Your email', gateTip:'The same email is the same account on desktop and phone', howto:'Add to Home Screen?', sprite:'Want the sprite on every page?',
@@ -813,6 +813,7 @@
       '<div class="rowitem"><div class="t"><b>' + esc(ACCT && ACCT.email || '—') + '</b><span>' +
         (ACCT ? (ACCT.plan === 'active' ? T.acctActive : T.acctTrial + ' · ' + (left != null ? left + ' ' + T.days : '')) : '') + '</span></div></div>' +
       '<div class="sec">分享进来</div>' +
+      '<div class="rowitem" id="mSpriteLive"><div class="t"><b>✦ ' + T.spriteLive + '</b><span>' + T.spriteLiveTip + '</span></div><div class="k">' + T.spriteNew + ' ›</div></div>' +
       '<div class="rowitem" id="mSpriteApp"><div class="t"><b>✦ ' + T.spriteApp + '</b><span>' + T.spriteAppTip + '</span></div><div class="k">' + T.spriteNew + ' ›</div></div>' +
       '<div class="rowitem" id="mSpriteDl"><div class="t"><b>⬇ ' + T.spriteDl + '</b><span>' + T.spriteDlTip + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mSpriteCode"><div class="t"><b>🔖 ' + T.spriteCode + '</b><span>' + T.spriteCodeTip + '</span></div><div class="k">›</div></div>' +
@@ -830,6 +831,12 @@
       const addr = (await ensureBase()) + '/share?token=' + encodeURIComponent(store.k);
       try { await navigator.clipboard.writeText(addr); toast(T.addrCopied); }
       catch (_) { prompt(T.shareAddr, addr); }
+    };
+    $('#mSpriteLive').onclick = async () => {
+      const b = await ensureBase();
+      // 装一次就常驻：说明页里有 App Store 链接、开启扩展的步骤、以及带连接码的安装按钮
+      const w = window.open(b + '/u/' + encodeURIComponent(store.k), '_blank');
+      if (!w) location.href = b + '/u/' + encodeURIComponent(store.k);
     };
     $('#mSpriteApp').onclick = async () => {
       const b = await ensureBase();
