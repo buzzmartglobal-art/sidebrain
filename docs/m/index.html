@@ -344,6 +344,22 @@
     }, 60);
   }
 
+  // 把关键控件的真实位置报上来：真机自动化点按靠这个对齐坐标
+  function reportGeom() {
+    if (!DBG_ON) return;
+    const vv = window.visualViewport || {};
+    const mid = el => { const b = el && el.getBoundingClientRect(); return b ? { x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2) } : null; };
+    const chips = [...document.querySelectorAll('#coachbar .cchip')].map(x => ({ t: x.textContent.slice(0, 14), ...mid(x) }));
+    const quick = [...document.querySelectorAll('#quick button')].map(x => ({ t: x.textContent.slice(0, 14), ...mid(x) }));
+    dbg('geom', {
+      dpr: window.devicePixelRatio, vw: window.innerWidth, vh: window.innerHeight,
+      vvTop: Math.round(vv.offsetTop || 0), vvH: Math.round(vv.height || 0), scrollY: Math.round(scrollY || 0),
+      pill: mid(document.getElementById('modepill')), composer: mid(document.getElementById('ta')),
+      send: mid(document.getElementById('send')), state: mid(document.getElementById('hstate')),
+      coachbar: mid(document.getElementById('coachbar')), chips, quick,
+    });
+  }
+
   let baseReady = null;
   function ensureBase() {
     if (!baseReady) baseReady = (async () => {
@@ -620,6 +636,8 @@
   }
 
   /* ---------- 账号 ---------- */
+  setTimeout(reportGeom, 900);
+
   async function refreshAcct() {
     try {
       ACCT = await api('/account');
@@ -654,7 +672,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-0951';
+  const BUILD = '20261025-1003';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1226,6 +1244,7 @@
       : T.hp;
     paintQuick();
     paintCoachBar();
+    setTimeout(reportGeom, 120);
     document.body.classList.toggle('coachmode', coachOn());
   }
   function setMode(m) {
