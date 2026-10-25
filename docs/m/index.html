@@ -78,6 +78,10 @@
 
   /* 输入区 */
   body.inbrowser #composer{padding-bottom:calc(var(--sb) + 26px)}
+  .pill{display:none;flex:0 0 auto;margin-left:auto;font-size:11.5px;font-weight:600;letter-spacing:.2px;
+        color:#c9d7ff;background:rgba(91,140,255,.16);border:1px solid rgba(91,140,255,.35);
+        border-radius:20px;padding:3px 9px;white-space:nowrap}
+  .pill.on{display:inline-block}
   #composer{flex:0 0 auto;padding:8px 12px calc(var(--sb) + 10px);background:rgba(13,15,19,.96);
     backdrop-filter:blur(14px);border-top:1px solid var(--line)}
   .attbar{display:flex;gap:8px;flex-wrap:wrap;padding:0 2px 8px}
@@ -169,6 +173,7 @@
         <span id="sub">连上了</span>
       </div>
     </div>
+    <span class="pill" id="modepill"></span>
     <button class="hbtn" id="btnNotes" title="笔记">🗒</button>
     <button class="hbtn" id="btnMenu" title="设置">⋯</button>
   </header>
@@ -514,6 +519,7 @@
       url: '',
       title: document.title,
     };
+    if (coachOn()) payload.system = COACH_SYS;
     // 用户那条的真实文字（带附件时 text 可能是占位）
     const lastMsg = payload.messages[payload.messages.length - 1];
     if (lastMsg && !text) lastMsg.content = (att.image ? '[图片] ' : '') + (att.files.map(f => '[文件] ' + f.name).join(' ') || '看图');
@@ -576,9 +582,49 @@
   $('#gMail').addEventListener('keydown', e => { if (e.key === 'Enter') $('#gGo').click(); });
 
   /* ---------- 快捷问题 ---------- */
+  /* ---------- 英文教练模式 ---------- */
+  const COACH_SYS = [
+    'You are the user\u2019s personal English coach inside their phone app.',
+    'Rules:',
+    '1. Always answer in English, natural and conversational, level B1-B2, 2-4 short sentences.',
+    '2. If their last message has any grammar or wording problem, start your reply with "Better: <their sentence fixed>" and then one short line in Chinese explaining what changed.',
+    '3. If their sentence is already fine, do not invent corrections.',
+    '4. Always finish with exactly one short question that keeps the conversation going.',
+    '5. Never give a lecture, never list more than 3 items. You are a coach, not a textbook.',
+    '6. Match the topic they bring up; if they ask to practice a scenario, role-play it as the other person.',
+  ].join('\n');
+  const COACH_CHIPS = {
+    zh: ['热身：聊今天', '面试：自我介绍', '点咖啡', '帮我改这段英文'],
+    en: ['Warm-up: my day', 'Interview: tell me about you', 'Order a coffee', 'Fix this paragraph'],
+  };
+  let MODE = 'chat';
+  try { MODE = store.mode === 'coach' ? 'coach' : 'chat'; } catch (_) {}
+  const coachOn = () => MODE === 'coach';
+  function paintMode() {
+    const pill = $('#modepill');
+    if (pill) {
+      pill.classList.toggle('on', coachOn());
+      pill.textContent = coachOn() ? '🗣 ' + (EN ? 'English coach' : '英文教练') : '';
+    }
+    const h1 = $('#h1'), hp = $('#hp');
+    if (h1) h1.textContent = coachOn() ? (EN ? 'Let\u2019s practice.' : '今天练点什么？') : (EN ? 'What do you want to ask?' : T.h1);
+    if (hp) hp.textContent = coachOn()
+      ? (EN ? 'Talk in English. I\u2019ll fix your sentence first, then keep the chat going.' : '用英文说，我先把你的句子改地道，再接着聊。')
+      : T.hp;
+    paintQuick();
+    document.body.classList.toggle('coachmode', coachOn());
+  }
+  function setMode(m) {
+    MODE = m === 'coach' ? 'coach' : 'chat';
+    try { store.mode = MODE; } catch (_) {}
+    paintMode();
+    if (coachOn() && !CHAT.length) { /* 第一句让教练先开口，用户不用想说什么 */ }
+  }
+
   function paintQuick() {
     const q = $('#quick'); q.innerHTML = '';
-    [T.q1, T.q2, T.q3].forEach(s => {
+    const chips = coachOn() ? (EN ? COACH_CHIPS.en : COACH_CHIPS.zh) : [T.q1, T.q2, T.q3];
+    chips.forEach(s => {
       const b = document.createElement('button');
       b.textContent = s;
       b.onclick = () => { ta.value = s; send(); };
@@ -824,6 +870,11 @@
       '<div class="rowitem" id="mSpriteDl"><div class="t"><b>⬇ ' + T.spriteDl + '</b><span>' + T.spriteDlTip + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mSpriteCode"><div class="t"><b>🔖 ' + T.spriteCode + '</b><span>' + T.spriteCodeTip + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mShareAddr"><div class="t"><b>🔗 ' + T.shareAddr + '</b><span>' + T.shareTip + '</span></div><div class="k">' + T.copyAddr + ' ›</div></div>' +
+      '<div class="sec">模式</div>' +
+      '<div class="rowitem" id="mCoach"><div class="t"><b>🗣 ' + (EN ? 'English coach' : '英文教练') + '</b><span>' +
+        (EN ? (coachOn() ? 'ON · talk in English, I fix your sentence first' : 'Practice English: I correct your sentence, then keep the chat going') :
+              (coachOn() ? '已开启 · 用英文说，我先把你的句子改地道' : '练英文：先把你的句子改地道，再接着聊')) +
+        '</span></div><div class="k">' + (coachOn() ? (EN ? 'ON' : '开') : (EN ? 'OFF' : '关')) + ' ›</div></div>' +
       '<div class="sec">用</div>' +
       '<div class="rowitem" id="mNotes"><div class="t"><b>🗒 ' + T.notes + '</b></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mExport"><div class="t"><b>⬇ ' + T.exportV + '</b><span>' + T.exportTip + '</span></div><div class="k">›</div></div>' +
@@ -833,6 +884,11 @@
       '<div class="rowitem"><div class="t"><b>Sidebrain</b><span>' + (EN ? 'Routes each message to the cheapest model that fits. Notes stay in plain Markdown.' : '每条消息自动交给最合适又最便宜的模型。笔记就是普通 Markdown 文件。') + '</span></div></div>' +
       '<div class="hint" style="padding-top:16px">' + (EN ? 'Tip: Share → Add to Home Screen to use it like an app.' : '提示：点 Safari 的分享 → 添加到主屏幕，用起来就跟 App 一样。') + '</div>' +
       '<div class="hint" style="text-align:center;opacity:.45;font-size:11.5px;padding-top:6px">v10-24 22:38</div>';
+    $('#mCoach').onclick = () => {
+      setMode(coachOn() ? 'chat' : 'coach');
+      closeSheet(menuSheet);
+      toast(coachOn() ? (EN ? '🗣 English coach on' : '🗣 英文教练已开启') : (EN ? 'Back to normal chat' : '回到普通对话'), 1500);
+    };
     $('#mNotes').onclick = () => { closeSheet(menuSheet); openSheet(sheet); noteList(''); };
     $('#mShareAddr').onclick = async () => {
       const addr = (await ensureBase()) + '/share?token=' + encodeURIComponent(store.k);
@@ -930,6 +986,7 @@
     if (!standalone) document.body.classList.add('inbrowser');
   } catch (_) {}
 
+  paintMode();
   paintChat();
   if (store.k) refreshAcct(); else $('#gate').classList.remove('hide');
   setInterval(() => { if (store.k && !ACCT) refreshAcct(); }, 60000);
