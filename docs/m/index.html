@@ -231,7 +231,10 @@
 <script>
 (() => {
   'use strict';
-  const EN = (navigator.language || '').toLowerCase().startsWith('en') && !(navigator.language || '').toLowerCase().startsWith('zh');
+  // ?lang=zh / ?lang=en 可以强制界面语言（手机上系统语言是英文但你想看中文时用）
+  const LANGQ = (new URLSearchParams(location.search).get('lang') || '').toLowerCase();
+  const EN = LANGQ ? LANGQ.startsWith('en')
+                   : ((navigator.language || '').toLowerCase().startsWith('en') && !(navigator.language || '').toLowerCase().startsWith('zh'));
   const T = {
     zh: { hi:'要问点什么？', hp:'截图、文件、语音都能直接发进来，回答会自动存进你的笔记库。',
       ph:'发消息…', hint:'回答来自自动选中的模型，你不用挑', notes:'笔记', settings:'设置',
