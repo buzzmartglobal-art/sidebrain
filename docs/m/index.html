@@ -87,6 +87,12 @@
   .pill.on{display:inline-block}
   .coachbar{display:none;gap:7px;padding:6px 12px 2px;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .coachbar.on{display:flex}
+  #hstate{display:none;align-items:center;gap:6px;padding:0 14px;font-size:12.5px;color:var(--dim);min-height:0}
+  #hstate.listen,#hstate.think,#hstate.speak{display:flex}
+  #hstate.listen{color:#7dd48a}
+  #hstate.think{color:#f0c674}
+  #hstate.speak{color:#7fa8ff}
+  .cchip.xp{background:#2a2413;border-color:#4a3d18;color:#f0c674}
   .cchip{flex:0 0 auto;font:600 13px/1 -apple-system,"PingFang SC",sans-serif;color:#a9b7d1;background:#151a23;
          border:1px solid #262d3a;border-radius:20px;padding:8px 13px;white-space:nowrap}
   .cchip.act{color:#fff;background:linear-gradient(140deg,#5b8cff,#8b5cf6);border-color:transparent}
@@ -207,6 +213,7 @@
   </div>
 
   <div class="coachbar" id="coachbar"></div>
+  <div class="hstate" id="hstate"></div>
 
   <div id="composer">
     <div class="attbar" id="attbar"></div>
@@ -401,6 +408,7 @@
     feed.querySelectorAll('.row').forEach(n => n.remove());
     $('#hello').style.display = CHAT.length ? 'none' : '';
     for (const m of CHAT) {
+      if (m.hide) continue;
       const { wrap, bub } = rowEl(m.role, m.text, attHtml(m.att));
       if (m.role === 'assistant') addMeta(bub, m);
       feed.appendChild(wrap);
@@ -521,6 +529,7 @@
 
   /* ---------- 发送 ---------- */
   let busy = false;
+  let SILENT_NEXT = false;
   async function send() {
     const text = ta.value.trim();
     if (busy) return;
@@ -529,9 +538,13 @@
     const att = { image: ATT.image, files: ATT.files.slice() };
     const shown = text || (att.image ? '📷 ' + T.img : '📄 ' + att.files.map(f => f.name).join(', '));
     const msg = { role: 'user', text: shown, att: { image: att.image, files: att.files.map(f => ({ name: f.name })) } };
+    const silent = SILENT_NEXT; SILENT_NEXT = false;
     CHAT.push(msg);
-    const { wrap } = rowEl('user', shown, attHtml(msg.att));
-    feed.appendChild(wrap);
+    if (silent) msg.hide = true;
+    if (!silent) {
+      const { wrap } = rowEl('user', shown, attHtml(msg.att));
+      feed.appendChild(wrap);
+    }
     $('#hello').style.display = 'none';
     ta.value = ''; ATT.image = null; ATT.files = []; paintAtt(); autoGrow();
     feed.scrollTop = feed.scrollHeight;
@@ -560,9 +573,10 @@
       CHAT.push({ role: 'assistant', text: r.text, channel: r.channel, ms: r.ms, saved: r.saved, kind: r.kind });
       const { wrap: w2, bub } = rowEl('assistant', r.text);
       addMeta(bub, CHAT[CHAT.length - 1]);
+      if (coachOn()) { bumpTurn(); collectFixes(r.text); }
       feed.appendChild(w2);
       if (CSUB === 'read') READ_TARGET = String(r.text || '').replace(/^(Better|Corrections|Rewritten)[^\n]*\n?/gim, '').split(/\n/).map(x => x.trim()).filter(x => /[a-z]/i.test(x))[0] || '';
-      if (HANDS) speakOut(r.text);
+      try { if (HANDS) speakOut(r.text); } catch (_) { setTimeout(startListen, 300); }
       if (r.saved) toast('🗒 ' + T.saved, 1500);
     } catch (e) {
       wait.remove();
@@ -616,7 +630,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-0005';
+  const BUILD = '20261025-0055';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -636,6 +650,21 @@
 
   /* ---------- 英文教练模式 ---------- */
   const COACH_MODES = {
+    natural: {
+      zh: '自然对话', en: 'Natural talk',
+      sys: [
+        'You are a topic-driven English conversation coach. You never make small talk, and you never let the conversation drift.',
+        'You own the agenda. Open every session by assigning ONE concrete topic that fits my level and my world (animation, filmmaking, storytelling, product, daily life), in exactly this shape:',
+        'TOPIC: <one line>',
+        'PLAN: <stage 1> -> <stage 2> -> <stage 3>',
+        'then ask your first question.',
+        'Then run that plan turn by turn. Each turn: react in at most 8 words; if my sentence was wrong, add ONE line "Better: <natural version>" plus a 6-word Chinese note; then ask exactly ONE question that moves us to the next stage.',
+        'If I say anything off-topic, ask me personal questions, or try to chat about something else, refuse in ONE line - "Let us stay on the topic: <topic>" - and repeat your question. Never follow my drift, never switch topic because I asked, never answer unrelated questions. You are a coach, not a chat partner.',
+        'When the plan is finished (around six exchanges), give a 3-line wrap: what I can already do, the one thing to fix, and the next topic. Then stop and wait for me to say "next".',
+        'Never write more than 60 words per turn. I speak my replies, so my messages are messy transcripts - never complain about punctuation.',
+      ].join('\n'),
+      chips: { zh: ['换个主题', '再难一点', '结束这个话题'], en: ['New topic', 'Harder topic', 'Wrap this topic up'] },
+    },
     talk: {
       zh: '主题演讲', en: 'Short talk',
       sys: [
@@ -706,7 +735,7 @@
   let MODE = 'chat';
   try { MODE = store.mode === 'coach' ? 'coach' : 'chat'; } catch (_) {}
   const coachOn = () => MODE === 'coach';
-  let CSUB = 'talk';
+  let CSUB = 'natural';
   let HANDS = false;
   try { HANDS = !!store.hands; } catch (_) {}
   let LEVEL = 'B1';
@@ -733,7 +762,8 @@
     return { pct: Math.round(100 * matched / b.length), miss: miss.slice(0, 6) };
   }
   try { if (COACH_MODES[store.csub]) CSUB = store.csub; } catch (_) {}
-  const coachSys = () => (COACH_MODES[CSUB] || COACH_MODES.talk).sys;
+  if (!COACH_MODES[CSUB]) CSUB = 'natural';
+  const coachSys = () => (COACH_MODES[CSUB] || COACH_MODES.natural).sys;
   function paintCoachBar() {
     const bar = $('#coachbar');
     if (!bar) return;
@@ -781,10 +811,96 @@
     rp.textContent = '📊 ' + (EN ? 'report' : '复盘');
     rp.onclick = () => sessionReport();
     bar.appendChild(rp);
+
+    // 连击 / 今天说了多少轮
+    const xp = document.createElement('button');
+    xp.className = 'cchip xp';
+    xp.textContent = '🔥 ' + TURNS + (GOAL ? '/' + GOAL : '');
+    xp.title = EN ? 'turns today' : '今天说了几轮';
+    xp.onclick = () => toast(EN ? TURNS + ' turns today · streak ' + STREAK + ' days' : '今天 ' + TURNS + ' 轮 · 连着 ' + STREAK + ' 天', 2400);
+    bar.appendChild(xp);
+
+    // 译：把教练最后一句翻成中文（Gliglish 的那条）
+    const tr = document.createElement('button');
+    tr.className = 'cchip';
+    tr.textContent = '译';
+    tr.title = EN ? 'Translate the last line' : '把最后一句翻成中文';
+    tr.onclick = () => translateLast();
+    bar.appendChild(tr);
+
+    // 慢放：把最后一句用更慢的语速再念一遍
+    const sl = document.createElement('button');
+    sl.className = 'cchip';
+    sl.textContent = '🐢';
+    sl.title = EN ? 'Replay slower' : '慢一点再念一遍';
+    sl.onclick = () => replayLast(0.68);
+    bar.appendChild(sl);
+  }
+
+  /* ---------- 连击 / 今日轮数（对标 Duolingo、Praktika） ---------- */
+  const DAY = new Date().toISOString().slice(0, 10);
+  let TURNS = Number(localStorage.getItem('sb_turns_' + DAY) || 0);
+  let STREAK = Number(localStorage.getItem('sb_streak') || 0);
+  const GOAL = 10;
+  function bumpTurn() {
+    TURNS++;
+    try { localStorage.setItem('sb_turns_' + DAY, String(TURNS)); } catch (_) {}
+    const last = localStorage.getItem('sb_streak_day') || '';
+    if (last !== DAY) {
+      const y = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+      STREAK = last === y ? STREAK + 1 : 1;
+      try { localStorage.setItem('sb_streak', String(STREAK)); localStorage.setItem('sb_streak_day', DAY); } catch (_) {}
+    }
+    if (coachOn()) paintCoachBar();
+  }
+
+  /* ---------- 译最后一句 / 慢速重念 ---------- */
+  const lastAssistant = () => { for (let i = CHAT.length - 1; i >= 0; i--) if (CHAT[i].role === 'assistant') return CHAT[i].text; return ''; };
+  async function translateLast() {
+    const txt = lastAssistant();
+    if (!txt) { toast(EN ? 'Nothing to translate yet' : '还没有可以翻的', 1600); return; }
+    const row = document.createElement('div');
+    row.className = 'meta tr';
+    row.textContent = '…';
+    feed.appendChild(row); feed.scrollTop = feed.scrollHeight;
+    try {
+      const r = await api('/v1/chat', { messages: [{ role: 'user', content: txt }], system: 'Translate the message into natural Chinese. Output only the translation, no quotes, no explanation.' });
+      row.textContent = r.text.trim();
+    } catch (e) { row.textContent = '⚠️ ' + (e.message || 'fail'); }
+    feed.scrollTop = feed.scrollHeight;
+  }
+  function replayLast(rate) {
+    const txt = lastAssistant();
+    if (!txt || !TTS) return;
+    try { TTS.cancel(); } catch (_) {}
+    const u = new SpeechSynthesisUtterance(plainSay(txt).slice(0, 800));
+    try { const v = pickVoice(); if (v) u.voice = v; } catch (_) {}
+    u.lang = 'en-US'; u.rate = rate || 0.7;
+    TTS.speak(u);
   }
 
   /* ---------- 免手对话：自动朗读 + 自动收音 ---------- */
   const TTS = window.speechSynthesis;
+  let VOICES = [];
+  const pickVoice = () => {
+    if (!TTS) return null;
+    try {
+    VOICES = TTS.getVoices() || [];
+    const en = VOICES.filter(v => /^en(-|_)?/i.test(v.lang || ''));
+    return en.find(v => /samantha|ava|allison|google us english|natural/i.test(v.name)) || en[0] || null;
+    } catch (_) { return null; }
+  };
+  try { if (TTS) { pickVoice(); TTS.onvoiceschanged = () => pickVoice(); } } catch (_) {}
+  // iOS 必须由一次用户手势把嗓子叫醒，否则第一次 speak() 是无声的
+  let ttsReady = false;
+  function unlockTTS() {
+    if (!TTS || ttsReady) return;
+    try {
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0.01; u.lang = 'en-US';
+      TTS.speak(u); ttsReady = true;
+    } catch (_) {}
+  }
   function plainSay(t) {
     return String(t || '')
       .replace(/```[\s\S]*?```/g, ' ')
@@ -796,11 +912,13 @@
   }
   function speakOut(t) {
     if (!HANDS) return;
+    setState('speak');
     const txt = plainSay(t).slice(0, 1000);
     if (!txt) { setTimeout(startListen, 200); return; }
     if (!TTS) { setTimeout(startListen, 200); return; }
     try { TTS.cancel(); } catch (_) {}
     const u = new SpeechSynthesisUtterance(txt);
+    try { const v = pickVoice(); if (v) u.voice = v; } catch (_) {}
     u.lang = 'en-US';
     u.rate = LEVEL === 'A2' ? 0.84 : LEVEL === 'B2' ? 1.0 : 0.93;
     u.onend = () => { if (HANDS) setTimeout(startListen, 200); };
@@ -820,15 +938,24 @@
     startListen();
   }
   let hRec = null, hTimer = null, hFinal = '', hFails = 0;
+  function setState(st) {
+    const el = $('#hstate');
+    if (!el) return;
+    const map = { listen: ['🎤', T.listening, 'listen'], think: ['🧠', EN ? 'thinking…' : '想一下…', 'think'], speak: ['🔊', EN ? 'speaking' : '在念', 'speak'], idle: ['', '', 'idle'] };
+    const [icon, label, cls] = map[st] || map.idle;
+    el.textContent = icon ? icon + ' ' + label : '';
+    el.className = cls;
+  }
   function startListen() {
     if (!HANDS || busy || !SR || recOn) return;
+    setState('listen');
     hFinal = '';
     hRec = new SR();
     hRec.lang = 'en-US';
     hRec.interimResults = true;
-    hRec.continuous = true;
+    hRec.continuous = false;      // iOS Safari 上 continuous 不认，每轮一次更稳
     recOn = true;
-    hRec.onstart = () => { mic.classList.add('rec'); toast(T.listening, 6000); };
+    hRec.onstart = () => { mic.classList.add('rec'); hFails = 0; setState('listen'); };
     hRec.onresult = e => {
       let s = '';
       for (let i = 0; i < e.results.length; i++) s += e.results[i][0].transcript + ' ';
@@ -837,19 +964,29 @@
       if (hTimer) clearTimeout(hTimer);
       hTimer = setTimeout(() => { try { hRec.stop(); } catch (_) {} }, 1700);   // 你停了 1.7 秒就算说完了
     };
-    hRec.onerror = () => {
+    hRec.onerror = e => {
       recOn = false; mic.classList.remove('rec');
       if (!HANDS) return;
+      const err = e && e.error;
+      if (err === 'not-allowed' || err === 'service-not-allowed') {
+        HANDS = false; try { store.hands = false; } catch (_) {} paintHands(); setState('idle');
+        toast(EN ? 'Microphone blocked — allow it in the address bar' : '麦克风被挡了：地址栏里允许麦克风', 4000);
+        return;
+      }
       hFails++;
-      if (hFails >= 3) { HANDS = false; try { store.hands = false; } catch (_) {} paintHands(); toast(T.voiceUnsupported, 2600); return; }
-      setTimeout(startListen, 800);
+      if (hFails >= 3) {
+        HANDS = false; try { store.hands = false; } catch (_) {} paintHands(); setState('idle');
+        toast(EN ? 'Mic keeps dropping — tap 🎤 once to keep going' : '麦克风老断，点一下 🎤 继续说', 3600);
+        return;
+      }
+      setTimeout(startListen, 700);
     };
     hRec.onend = () => {
       recOn = false; mic.classList.remove('rec');
       if (!HANDS) return;
       const said = hFinal.trim();
       if (said.length > 1) { hFails = 0; ta.value = said; autoGrow(); if (READ_TARGET && CSUB === 'read') scoreRead(said); send(); }
-      else setTimeout(startListen, 350);
+      else { setState('idle'); setTimeout(startListen, 400); }
     };
     try { hRec.start(); } catch (_) { recOn = false; }
   }
@@ -867,8 +1004,36 @@
   }
 
   // 复盘：让教练给一张成绩单，并落进笔记
+  const FIX_KEY = 'sb_fixes';
+  function collectFixes(text) {
+    try {
+      const found = String(text || '').match(/Better:\s*([^\n]+)/gi) || [];
+      if (!found.length) return;
+      const list = JSON.parse(localStorage.getItem(FIX_KEY) || '[]');
+      found.forEach(f => {
+        const line = f.replace(/^Better:\s*/i, '').trim();
+        if (line && !list.some(x => x.s === line)) list.push({ s: line, d: DAY });
+      });
+      localStorage.setItem(FIX_KEY, JSON.stringify(list.slice(-300)));
+    } catch (_) {}
+  }
+  async function saveWordBank() {
+    try {
+      const list = JSON.parse(localStorage.getItem(FIX_KEY) || '[]');
+      if (!list.length) return null;
+      const fresh = list.filter(x => x.d === DAY);
+      const body = ['# 英语错题本 ' + DAY, '',
+        '> 教练每轮挑出来的一句「更地道的说法」。左边是我说的，右边是应该说的。', '',
+        ...(fresh.length ? fresh : list.slice(-20)).map((x, i) => (i + 1) + '. ' + x.s), '',
+        '（共 ' + (fresh.length || list.length) + ' 句，由 Sidebrain 英语教练自动收集）'].join('\n');
+      await api('/vault/write', { path: '英语教练/错题本-' + DAY + '.md', body });
+      return '英语教练/错题本-' + DAY + '.md';
+    } catch (_) { return null; }
+  }
+
   function sessionReport() {
     if (!CHAT.length) { toast(EN ? 'Say something first' : '先说两句再复盘', 1800); return; }
+    saveWordBank().then(p => { if (p) toast('🗒 ' + p, 2600); });
     ta.value = EN
       ? 'Give me a scorecard of this session: pronunciation, grammar, vocabulary, fluency and confidence, each /5 with one line why; then the 3 sentences I should reuse and the 2 mistakes to kill. Keep it short and in a table.'
       : 'Give me a scorecard of this session: pronunciation, grammar, vocabulary, fluency and confidence, each /5 with one line why; then the 3 sentences I should reuse and the 2 mistakes to kill. Keep it short and in a table.';
@@ -879,7 +1044,9 @@
     const pill = $('#modepill');
     if (pill) {
       pill.classList.toggle('on', coachOn());
-      pill.textContent = coachOn() ? '🗣 ' + (EN ? 'English coach' : '英文教练') : '';
+      pill.textContent = coachOn() ? '🗣 ' + (EN ? 'coach on' : '教练中') : '🗣 ' + (EN ? 'practise' : '练口语');
+      pill.style.display = 'inline-flex';
+      pill.onclick = () => { unlockTTS(); setMode(coachOn() ? 'chat' : 'coach'); };
     }
     const h1 = $('#h1'), hp = $('#hp');
     if (h1) h1.textContent = coachOn() ? (EN ? 'Let\u2019s practice.' : '今天练点什么？') : (EN ? 'What do you want to ask?' : T.h1);
@@ -894,12 +1061,25 @@
     MODE = m === 'coach' ? 'coach' : 'chat';
     try { store.mode = MODE; } catch (_) {}
     paintMode();
-    if (coachOn() && !CHAT.length) { /* 第一句让教练先开口，用户不用想说什么 */ }
+    if (coachOn()) enterCoach();
+  }
+
+  // 进教练模式：一次手势里把语音链路全叫醒（iOS 只认手势）
+  function enterCoach() {
+    unlockTTS();
+    if (!CHAT.some(x => x.role === 'assistant') && !busy) {
+      ta.value = 'Start the session.';
+      SILENT_NEXT = true;
+      if (!HANDS && SR) { HANDS = true; try { store.hands = true; } catch (_) {} paintHands(); }
+      setTimeout(() => send(), 60);
+    } else if (HANDS && !recOn && !busy) {
+      setTimeout(startListen, 300);
+    }
   }
 
   function paintQuick() {
     const q = $('#quick'); q.innerHTML = '';
-    const chips = coachOn() ? ((COACH_MODES[CSUB] || COACH_MODES.talk).chips[EN ? 'en' : 'zh']) : [T.q1, T.q2, T.q3];
+    const chips = coachOn() ? ((COACH_MODES[CSUB] || COACH_MODES.natural).chips[EN ? 'en' : 'zh']) : [T.q1, T.q2, T.q3];
     chips.forEach(s => {
       const b = document.createElement('button');
       b.textContent = s;
@@ -1209,16 +1389,25 @@
     };
     $('#mSpriteCode').onclick = async () => {
       const b = await ensureBase();
-      // 书签（bookmarklet）：不用装任何扩展。基础地址每次现查 endpoint.json，
-      // 所以隧道换域名也不会失效 —— 这是 iPhone 上唯一不依赖第三方的常驻方式。
-      const EP = 'https://buzzmartglobal-art.github.io/sidebrain/endpoint.json';
-      const code = 'javascript:(function(){if(window.__SB_SPRITE__)return;var TK=' + JSON.stringify(store.k) +
-        ',B=' + JSON.stringify(b) + ',EP=' + JSON.stringify(EP) +
+      // 书签（bookmarklet）：不用装任何扩展，这是 iPhone 上唯一不依赖第三方的常驻方式。
+      // 地址三层兜底：同源 fetch endpoint.json → <script> 拉 current.js（Pages 不给 CORS 头，
+      // 但脚本不受同源限制）→ 复制时记下的地址。所以隧道换域名，书签也不用重存。
+      const PAGES = 'https://buzzmartglobal-art.github.io/sidebrain/';
+      const code = 'javascript:(function(){if(window.__SB_SPRITE__)return;' +
+        'var TK=' + JSON.stringify(store.k) +
+        ',B=' + JSON.stringify(b) +
+        ',EP=' + JSON.stringify(PAGES + 'endpoint.json') +
+        ',CJ=' + JSON.stringify(PAGES + 'current.js') +
         ';function run(x){if(window.__SB_SPRITE__)return;window.__SB_TOKEN__=TK;window.__SB_BASE__=x;' +
-        'var s=document.createElement("script");s.src=x+"/sprite.js?"+Date.now();s.onerror=function(){open(x+"/m/?u="+encodeURIComponent(location.href),"_blank");};' +
+        'var s=document.createElement("script");s.src=x+"/sprite.js?t="+Date.now();' +
+        's.onerror=function(){location.href=x+"/m/?u="+encodeURIComponent(location.href);};' +
         'document.documentElement.appendChild(s);}' +
-        'fetch(EP,{cache:"no-store"}).then(function(r){return r.json();}).then(function(j){run(j&&j.serverBase?j.serverBase:B);}).catch(function(){run(B);});})()';
-      try { await navigator.clipboard.writeText(code); toast(T.spriteCopied); setTimeout(showHowTo, 260); }
+        'function viaScript(){var g=document.createElement("script");g.src=CJ+"?t="+Date.now();' +
+        'g.onload=function(){run(window.__SB_CUR||B);};g.onerror=function(){run(B);};' +
+        'document.documentElement.appendChild(g);}' +
+        'try{fetch(EP,{cache:"no-store"}).then(function(r){return r.json();})' +
+        '.then(function(j){run((j&&j.serverBase)||B);}).catch(viaScript);}catch(e){viaScript();}})()';
+      try { await navigator.clipboard.writeText(code); window.__SB_LAST_BM = code; toast(T.spriteCopied); setTimeout(showHowTo, 260); }
       catch (_) { prompt(T.spriteCode, code); }
     };
     $('#mExport').onclick = () => { closeSheet(menuSheet); exportVault(); };
@@ -1238,15 +1427,15 @@
 
   /* ---------- 书签怎么存（复制后立刻给出六步） ---------- */
   const BM_STEPS = EN ? [
-    'Tap <b>Share</b> (square with an up arrow) on any page → <b>Add Bookmark</b>.',
-    'Name it <code>Sidebrain</code> → put it in <b>Favorites</b> → <b>Save</b>.',
-    'Open <b>Bookmarks</b> (the open-book icon) → <b>Edit</b> → tap <b>Sidebrain</b>.',
+    'iOS 26: tap the <b>Page Menu</b> (the <b>⋯</b> left of the address bar) → <b>Add Bookmark to…</b> → <b>Save</b>.',
+    'Name the bookmark <code>Sidebrain</code> → choose <b>Favorites</b>.',
+    'Open <b>Bookmarks</b> (open-book icon at the bottom, or long-press the toolbar and drag) → <b>Edit</b> → tap <b>Sidebrain</b>.',
     'Delete the whole <b>Address</b> line → <b>Paste</b> → <b>Done</b>. The address becomes <code>javascript:…</code>',
     'On any page: <b>Bookmarks</b> → tap <b>Sidebrain</b>. The pill shows up bottom-right.',
   ] : [
-    '在任何网页点 <b>分享</b>（方框带箭头）→ <b>添加书签</b>。',
-    '名字写 <code>Sidebrain</code> → 位置选 <b>个人收藏</b> → <b>存储</b>。',
-    '打开 <b>书签</b>（书形图标）→ <b>编辑</b> → 点 <b>Sidebrain</b>。',
+    'iOS 26：点地址栏左边的 <b>⋯</b>（页面菜单）→ <b>添加到书签</b> → <b>存储</b>。',
+    '名字写 <code>Sidebrain</code> → 位置选 <b>个人收藏</b>。',
+    '打开 <b>书签</b>（底部书形图标，或长按工具栏拖到书签）→ <b>编辑</b> → 点 <b>Sidebrain</b>。',
     '把 <b>地址那一栏整行删掉</b> → <b>粘贴</b> → <b>完成</b>，地址变成 <code>javascript:…</code> 就对了。',
     '以后任何网页：<b>书签</b> → 点 <b>Sidebrain</b>，右下角出现药丸。',
   ];
@@ -1262,6 +1451,9 @@
     $('#howto').classList.remove('hide');
     $('#howtoOk').onclick = () => $('#howto').classList.add('hide');
   }
+
+  // 调试用（也方便以后远程看状态）
+  window.__SB_COACH = () => ({ hands: HANDS, recOn, turns: TURNS, csub: CSUB, level: LEVEL, busy, chat: CHAT.length });
 
   /* ---------- 启动 ---------- */
   document.documentElement.lang = EN ? 'en' : 'zh';
