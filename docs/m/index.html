@@ -644,6 +644,59 @@
   /* ---------- 账号 ---------- */
   setTimeout(reportGeom, 900);
 
+  /* ---------- 设备自检：?selftest=1 ----------
+     屏幕锁着 / 没有手指头可用的时候，用它把真机上「模型、语音、麦克风」三条链路各跑一遍，
+     结果直接报到服务器（/dbg?tail=）。不替代点按，但它跑的是同一份代码。 */
+  if (/[?&]selftest=1/.test(location.search)) {
+    const rep = (o) => dbg('sim', o);
+    setTimeout(async () => {
+      rep({ step: 'caps', dpr: devicePixelRatio, vw: innerWidth, vh: innerHeight, sr: !!SR, tts: !!TTS, stand: navigator.standalone === true });
+      try {
+        const r = await api('/v1/chat', {
+          messages: [{ role: 'user', content: 'Start the session.' }],
+          system: COACH_MODES.natural.sys + '\n' + lvlLine(), kind: 'simple', level: 1,
+        });
+        rep({ step: 'chat', ch: r.channel, ms: r.ms, len: String(r.text || '').length });
+        const chunk = spokenPart(r.text) || 'Hello.';
+        const t0 = Date.now();
+        const url = await ttsFetch(chunk);
+        rep({ step: 'tts_ok', ms: Date.now() - t0, chars: chunk.length });
+        // 能不能真的放出声（没有用户手势时 iOS 会拦）
+        const meta = await new Promise(res => {
+          const a = new Audio(url);
+          let done = false;
+          a.onloadedmetadata = () => { if (!done) { done = true; res({ dur: Math.round((a.duration || 0) * 10) / 10 }); } };
+          a.onerror = () => { if (!done) { done = true; res({ err: 'media error' }); } };
+          setTimeout(() => { if (!done) { done = true; res({ dur: Math.round((a.duration || 0) * 10) / 10 }); } }, 4000);
+        });
+        rep({ step: 'audio_meta', ...meta });
+        let playErr = '';
+        try {
+          await AUD.play();
+          await new Promise(r2 => setTimeout(r2, 500));
+          rep({ step: 'play', ok: AUD.currentTime > 0.05, t: Math.round(AUD.currentTime * 10) / 10, paused: AUD.paused });
+          try { AUD.pause(); } catch (_) {}
+        } catch (e) { playErr = String(e && e.name || e); rep({ step: 'play', ok: false, err: playErr }); }
+        try { URL.revokeObjectURL(url); } catch (_) {}
+      } catch (e) { rep({ step: 'chat_fail', err: String(e && e.message || e).slice(0, 140) }); }
+      // 麦克风：能不能开口
+      if (SR) {
+        try {
+          const r = new SR();
+          r.lang = 'en-US'; r.interimResults = false; r.continuous = false;
+          let done = false;
+          const fin = (o) => { if (!done) { done = true; rep({ step: 'sr', ...o }); } };
+          r.onstart = () => fin({ started: true });
+          r.onerror = (e) => fin({ started: false, err: String((e && e.error) || ''), msg: String((e && e.message) || '').slice(0, 80) });
+          r.onresult = (e) => fin({ started: true, heard: String(e.results[0][0].transcript).slice(0, 60) });
+          try { r.start(); } catch (e) { fin({ started: false, err: 'throw ' + String(e && e.name || e) }); }
+          setTimeout(() => { try { r.stop(); } catch (_) {} if (!done) fin({ started: false, err: 'no event' }); }, 6000);
+        } catch (e) { rep({ step: 'sr', started: false, err: 'setup ' + String(e && e.name || e) }); }
+      } else rep({ step: 'sr', started: false, err: 'no SR object' });
+      rep({ step: 'done' });
+    }, 1500);
+  }
+
   async function refreshAcct() {
     try {
       ACCT = await api('/account');
