@@ -634,7 +634,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-0955';
+  const BUILD = '20261025-0951';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -917,6 +917,9 @@
   }
   function plainSay(t) {
     return String(t || '')
+      .replace(/\bTOPIC\s*:/g, 'Topic:')
+      .replace(/\bPLAN\s*:/g, 'Plan:')
+      .replace(/\bBetter\s*:/g, 'Better:')
       .replace(/```[\s\S]*?```/g, ' ')
       .replace(/`([^`]*)`/g, '$1')
       .replace(/\[(.*?)\]\(.*?\)/g, '$1')
@@ -990,19 +993,20 @@
       const fin = () => {
         if (done) return;
         done = true; clearTimeout(guard); clearTimeout(alive);
-        try { AUD.onended = AUD.onerror = null; } catch (_) {}
+        try { AUD.onended = AUD.onerror = AUD.ontimeupdate = null; } catch (_) {}
         res();
       };
       try {
         AUD.onended = fin;
         AUD.onerror = fin;
+        AUD.ontimeupdate = () => { if (AUD.currentTime > 0.05) clearTimeout(alive); };
         AUD.src = url;
         AUD.playbackRate = rate || 1;
         AUD.play().then(() => {
-          // 没真在播（无声环境 / 断网）就别卡住对话循环
-          alive = setTimeout(() => { try { if (AUD.paused) fin(); } catch (_) { fin(); } }, 800);
+          // 时间轴 1.5 秒都没动 → 当它没在播，别把对话循环卡死
+          alive = setTimeout(() => { try { if (AUD.currentTime <= 0.05) fin(); } catch (_) { fin(); } }, 1500);
           const dur = AUD.duration && isFinite(AUD.duration) ? AUD.duration : 6;
-          guard = setTimeout(fin, Math.max(1500, dur * 1000 / (rate || 1) + 1500));
+          guard = setTimeout(fin, Math.max(2000, dur * 1000 / (rate || 1) + 1800));
         }).catch(fin);
       } catch (_) { fin(); }
     });
@@ -1047,6 +1051,17 @@
     }).catch(() => sayBrowser(txt, null, () => { if (HANDS) setTimeout(startListen, 300); }));
   }
   function paintHands() { if (coachOn()) paintCoachBar(); }
+  // 念的时候点一下状态条：它闭嘴，麦克风立刻开 —— 抢话不用找按钮
+  (function bindStateTap() {
+    const el = document.getElementById('hstate');
+    if (!el) return;
+    el.style.cursor = 'pointer';
+    el.onclick = () => {
+      const st = el.className;
+      if (st === 'speak') { try { AUD.pause(); } catch (_) {} try { TTS && TTS.cancel(); } catch (_) {} if (HANDS) startListen(); }
+      else if (st === 'listen') { try { hRec && hRec.stop(); } catch (_) {} }
+    };
+  })();
   function toggleHands() {
     HANDS = !HANDS;
     if (HANDS && !coachOn()) setMode('coach');   // 免手就是来练口语的，顺手把教练打开
@@ -1165,7 +1180,11 @@
     const pill = $('#modepill');
     if (pill) {
       pill.classList.toggle('on', coachOn());
-      pill.textContent = coachOn() ? '🗣 ' + (EN ? 'coach on' : '教练中') : '🗣 ' + (EN ? 'practise' : '练口语');
+      // 顶栏地方窄，只放短名；长名字在下面的胶囊条里
+      const SHORT = { free: ['Chat', '闲聊'], natural: ['Talk', '对话'], talk: ['Speech', '演讲'], convo: ['Convo', '情境'],
+        writing: ['Write', '写作'], reading: ['Read', '阅读'], scenario: ['Role', '角色'], read: ['Aloud', '跟读'] };
+      const sh = SHORT[CSUB] || SHORT.natural;
+      pill.textContent = coachOn() ? '🗣 ' + (EN ? sh[0] : sh[1]) : '🗣 ' + (EN ? 'practise' : '练口语');
       pill.style.display = 'inline-flex';
       pill.onclick = () => { unlockTTS(); setMode(coachOn() ? 'chat' : 'coach'); };
     }
@@ -1472,7 +1491,7 @@
       '<div class="sec">关于</div>' +
       '<div class="rowitem"><div class="t"><b>Sidebrain</b><span>' + (EN ? 'Routes each message to the cheapest model that fits. Notes stay in plain Markdown.' : '每条消息自动交给最合适又最便宜的模型。笔记就是普通 Markdown 文件。') + '</span></div></div>' +
       '<div class="hint" style="padding-top:16px">' + (EN ? 'Tip: Share → Add to Home Screen to use it like an app.' : '提示：点 Safari 的分享 → 添加到主屏幕，用起来就跟 App 一样。') + '</div>' +
-      '<div class="hint" style="text-align:center;opacity:.45;font-size:11.5px;padding-top:6px">v10-25 09:55</div>';
+      '<div class="hint" style="text-align:center;opacity:.45;font-size:11.5px;padding-top:6px">v20-26 02:5-</div>';
     $('#mVoiceTop').onclick = () => {
       const box = $('#voiceBox');
       box.style.display = box.style.display === 'none' ? 'block' : 'none';

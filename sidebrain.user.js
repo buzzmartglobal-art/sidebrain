@@ -1300,18 +1300,44 @@
     }
   }
 
-  function speak(t, btn) {
+  // 一个人的嗓子：先请服务端的真人噪音（ElevenLabs / Gemini），拿不到才用浏览器自带的
+  let SPK_AUD = null;
+  function stopSpeak(btn) {
+    try { if (SPK_AUD) { SPK_AUD.pause(); SPK_AUD = null; } } catch (_) {}
+    try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (_) {}
+    if (btn) btn.classList.remove('on');
+  }
+  function speakBrowser(t, btn) {
     if (!window.speechSynthesis) return;
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-      btn.classList.remove('on');
-      return;
-    }
-    const u = new SpeechSynthesisUtterance(t.replace(/```[\s\S]*?```/g, '（代码块）').slice(0, 4000));
-    u.lang = 'zh-CN'; u.rate = 1.05;
+    const u = new SpeechSynthesisUtterance(t);
+    u.lang = /[\u4e00-\u9fa5]/.test(t) ? 'zh-CN' : 'en-US';
+    u.rate = 1.05;
     u.onend = () => btn.classList.remove('on');
     btn.classList.add('on');
     window.speechSynthesis.speak(u);
+  }
+  function speak(t, btn) {
+    const plain = t.replace(/```[\s\S]*?```/g, '（代码块）').slice(0, 4000);
+    if (SPK_AUD || (window.speechSynthesis && window.speechSynthesis.speaking)) { stopSpeak(btn); if (btn.classList.contains('on')) return; }
+    if (!hostedOn() || !/^https?:/.test(SERVER())) { speakBrowser(plain, btn); return; }
+    const text = plain.replace(/\s+/g, ' ').trim().slice(0, 480);
+    if (!text) return;
+    gm({
+      method: 'POST',
+      url: SERVER() + '/tts',
+      headers: { 'Content-Type': 'application/json', 'bypass-tunnel-reminder': '1', ...(CFG.sbToken ? { Authorization: 'Bearer ' + CFG.sbToken } : {}) },
+      data: JSON.stringify({ text }),
+      responseType: 'arraybuffer',
+      timeout: 30000,
+    }).then(r => {
+      if (r.status !== 200 || !r.response || r.response.byteLength < 800) throw new Error('tts');
+      const url = URL.createObjectURL(new Blob([r.response], { type: 'audio/wav' }));
+      SPK_AUD = new Audio(url);
+      SPK_AUD.onended = () => { btn.classList.remove('on'); URL.revokeObjectURL(url); SPK_AUD = null; };
+      SPK_AUD.onerror = () => { btn.classList.remove('on'); URL.revokeObjectURL(url); SPK_AUD = null; };
+      btn.classList.add('on');
+      return SPK_AUD.play();
+    }).catch(() => speakBrowser(plain, btn));
   }
 
   function estCost(ch, inChars, outChars) {
