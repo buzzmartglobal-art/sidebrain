@@ -325,6 +325,25 @@
     clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), ms);
   }
 
+  /* ---------- 遥测：?dbg=1 时把自己的状态报给服务器（真机出问题时有据可查） ---------- */
+  const DBG_ON = /[?&]dbg=1/.test(location.search) || (() => { try { return localStorage.getItem('sb_dbg') === '1'; } catch (_) { return false; } })();
+  let DBG_Q = [];
+  const dbg = (ev, o) => { if (!DBG_ON) return; try { DBG_Q.push({ ev, ...(o || {}) }); flushDbg(); } catch (_) {} };
+  let dbgTimer = 0;
+  function flushDbg() {
+    if (!DBG_ON || !DBG_Q.length) return;
+    clearTimeout(dbgTimer);
+    dbgTimer = setTimeout(async () => {
+      const batch = DBG_Q.splice(0, 12);
+      for (const item of batch) {
+        try {
+          const b = await ensureBase();
+          await fetch(b + '/dbg', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...item, build: BUILD, ua: navigator.userAgent.slice(0, 80) }) });
+        } catch (_) {}
+      }
+    }, 60);
+  }
+
   let baseReady = null;
   function ensureBase() {
     if (!baseReady) baseReady = (async () => {
@@ -575,6 +594,7 @@
       const r = await api('/v1/chat', payload);
       wait.remove();
       CHAT.push({ role: 'assistant', text: r.text, channel: r.channel, ms: r.ms, saved: r.saved, kind: r.kind });
+      dbg('reply', { ch: r.channel, ms: r.ms, len: String(r.text || '').length, csub: CSUB });
       const { wrap: w2, bub } = rowEl('assistant', r.text);
       addMeta(bub, CHAT[CHAT.length - 1]);
       if (coachOn()) { bumpTurn(); collectFixes(r.text); }
@@ -1016,15 +1036,23 @@
     const parts = splitSay(txt);
     if (!parts.length) return true;
     if (!SRV_VOICE_OK) return false;
+    const t0 = Date.now();
     const jobs = parts.map(p => ttsFetch(p).catch(() => null));
     const first = await jobs[0];
-    if (!first) { SRV_VOICE_OK = false; return false; }
+    if (!first) { SRV_VOICE_OK = false; dbg('tts_fail', { parts: parts.length }); return false; }
+    const firstMs = Date.now() - t0;
+    const played = [];
     for (let i = 0; i < parts.length; i++) {
       const url = i === 0 ? first : await jobs[i];
       if (!url) break;
+      const before = AUD.currentTime;
       await playUrl(url, rate);
+      let cur = 0, dur = 0;
+      try { cur = AUD.currentTime; dur = AUD.duration; } catch (_) {}
+      played.push({ i, at: Math.round((cur - before) * 10) / 10, dur: dur ? Math.round(dur * 10) / 10 : 0 });
       URL.revokeObjectURL(url);
     }
+    dbg('tts', { parts: parts.length, firstMs, played });
     return true;
   }
   function sayBrowser(txt, rate, onEnd) {
@@ -1081,6 +1109,7 @@
     const [icon, label, cls] = map[st] || map.idle;
     el.textContent = icon ? icon + ' ' + label : '';
     el.className = cls;
+    if (st !== setState._last) { setState._last = st; dbg('state', { st, hands: HANDS, csub: CSUB, lvl: LEVEL }); }
   }
   function startListen() {
     if (!HANDS || busy || !SR || recOn) return;
@@ -1091,7 +1120,7 @@
     hRec.interimResults = true;
     hRec.continuous = false;      // iOS Safari 上 continuous 不认，每轮一次更稳
     recOn = true;
-    hRec.onstart = () => { mic.classList.add('rec'); hFails = 0; setState('listen'); };
+    hRec.onstart = () => { mic.classList.add('rec'); hFails = 0; setState('listen'); dbg('sr_start', { csub: CSUB }); };
     hRec.onresult = e => {
       let s = '';
       for (let i = 0; i < e.results.length; i++) s += e.results[i][0].transcript + ' ';
@@ -1102,8 +1131,9 @@
     };
     hRec.onerror = e => {
       recOn = false; mic.classList.remove('rec');
-      if (!HANDS) return;
       const err = e && e.error;
+      dbg('sr_err', { err: String(err), msg: String((e && e.message) || '').slice(0, 120) });
+      if (!HANDS) return;
       if (err === 'not-allowed' || err === 'service-not-allowed') {
         HANDS = false; try { store.hands = false; } catch (_) {} paintHands(); setState('idle');
         toast(EN ? 'Microphone blocked — allow it in the address bar' : '麦克风被挡了：地址栏里允许麦克风', 4000);
@@ -1119,6 +1149,7 @@
     };
     hRec.onend = () => {
       recOn = false; mic.classList.remove('rec');
+      dbg('sr_end', { len: hFinal.trim().length });
       if (!HANDS) return;
       const said = hFinal.trim();
       if (said.length > 1) { hFails = 0; ta.value = said; autoGrow(); if (READ_TARGET && CSUB === 'read') scoreRead(said); send(); }
@@ -1199,6 +1230,7 @@
   }
   function setMode(m) {
     MODE = m === 'coach' ? 'coach' : 'chat';
+    dbg('mode', { mode: MODE, csub: CSUB });
     try { store.mode = MODE; } catch (_) {}
     paintMode();
     if (coachOn()) enterCoach();
