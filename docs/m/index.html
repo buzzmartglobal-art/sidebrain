@@ -731,7 +731,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-1035';
+  const BUILD = '20261025-1100';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1198,7 +1198,7 @@
     if (!HANDS || busy || recOn) return;
     if (document.visibilityState !== 'visible') return;
     const st = (document.getElementById('hstate') || {}).className;
-    if (st === 'think') return;
+    if (st === 'think' || st === 'speak') return;   // 想的时候、念的时候都不许开麦：念的时候开麦等于让它听自己
     try { startListen(true); } catch (_) {}
   }, 1500);
   // 念的时候点一下状态条：它闭嘴，麦克风立刻开 —— 抢话不用找按钮
@@ -1217,13 +1217,19 @@
     if (HANDS && !coachOn()) setMode('coach');   // 免手就是来练口语的，顺手把教练打开
     try { store.hands = HANDS; } catch (_) {}
     paintHands();
-    if (!HANDS) { try { hRec && hRec.stop(); } catch (_) {} if (hTimer) clearTimeout(hTimer); try { TTS && TTS.cancel(); } catch (_) {} mic.classList.remove('rec'); return; }
+    if (!HANDS) { try { hRec && hRec.stop(); } catch (_) {} if (hTimer) clearTimeout(hTimer); if (hRetry) { clearTimeout(hRetry); hRetry = null; } try { TTS && TTS.cancel(); } catch (_) {} mic.classList.remove('rec'); return; }
     if (!SR) { toast(T.voiceUnsupported, 2600); HANDS = false; paintHands(); return; }
     toast(EN ? 'Talk normally — I answer out loud, then listen again' : '直接说英文，我念出来，然后接着听', 2200);
     if (!CHAT.length) { ta.value = EN ? "Hi, let's practise." : "Hi, let's practise."; send(); return; }
     startListen();
   }
-  let hRec = null, hTimer = null, hFinal = '', hFails = 0;
+  let hRec = null, hTimer = null, hFinal = '', hFails = 0, hRetry = null;
+  // 麦克风重试：同一时间只有一个定时器，越错越慢，连错三次就停手（不能让它在坏设备上空转）
+  function retryListen(ms) {
+    if (!HANDS) return;
+    if (hRetry) clearTimeout(hRetry);
+    hRetry = setTimeout(() => { hRetry = null; try { startListen(true); } catch (_) {} }, ms);
+  }
   function setState(st) {
     const el = $('#hstate');
     if (!el) return;
@@ -1245,7 +1251,7 @@
     hRec.interimResults = true;
     hRec.continuous = false;      // iOS Safari 上 continuous 不认，每轮一次更稳
     recOn = true;
-    hRec.onstart = () => { mic.classList.add('rec'); hFails = 0; setState('listen'); dbg('sr_start', { csub: CSUB }); };
+    hRec.onstart = () => { mic.classList.add('rec'); setState('listen'); dbg('sr_start', { csub: CSUB }); };
     hRec.onresult = e => {
       let s = '';
       for (let i = 0; i < e.results.length; i++) s += e.results[i][0].transcript + ' ';
@@ -1267,10 +1273,10 @@
       hFails++;
       if (hFails >= 3) {
         HANDS = false; try { store.hands = false; } catch (_) {} paintHands(); setState('idle');
-        toast(EN ? 'Mic keeps dropping — tap 🎤 once to keep going' : '麦克风老断，点一下 🎤 继续说', 3600);
+        toast(EN ? 'Microphone is not working here — tap 🎤 once to try again' : '这台设备的麦克风没用起来，点一下 🎤 再试', 4200);
         return;
       }
-      setTimeout(startListen, 700);
+      retryListen(Math.min(4000, 500 * Math.pow(2, hFails)));
     };
     hRec.onend = () => {
       recOn = false; mic.classList.remove('rec');
@@ -1278,7 +1284,7 @@
       if (!HANDS) return;
       const said = hFinal.trim();
       if (said.length > 1) { hFails = 0; ta.value = said; autoGrow(); if (READ_TARGET && CSUB === 'read') scoreRead(said); send(); }
-      else { setState('idle'); setTimeout(startListen, 400); }
+      else { setState('idle'); retryListen(400); }
     };
     try { hRec.start(); } catch (_) { recOn = false; }
   }
