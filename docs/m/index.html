@@ -245,7 +245,7 @@
       voice:'说话', listening:'听着…', tapStop:'点一下结束', files:'文件', img:'图片', attached:'附件',
       saved:'已存进笔记', memoBusy:'正在生成今天的备忘录…', memoDone:'备忘录写好了', noNotes:'笔记本里还没有东西',
       attachments:'附件', voiceUnsupported:'这台设备不支持网页语音，用键盘上的麦克风键就行', saveFail:'没存上', clip:'收一篇', clipPh:'贴一个网页链接', clipBusy:'正在读这篇文章并整理…', clipDone:'已存进剪藏', exportV:'导出笔记库', exportTip:'拿到一个 zip，Obsidian 或其他笔记软件都能直接打开', shareAddr:'分享地址', shareTip:'粘到快捷指令里，手机上分享文章就能直接存进来', copyAddr:'复制地址', addrCopied:'地址已复制',
-      spriteLive:'一键常驻：每个网页都有它', spriteLiveTip:'装一次（Userscripts 扩展，免费开源），之后打开任何网页右下角都有小精灵', spriteApp:'下载小精灵快捷指令', spriteAppTip:'下完在「下载」里点那个文件 → 添加快捷指令；以后分享任何网页都能叫出小精灵', spriteCode:'复制小精灵书签', spriteCodeTip:'粘到地址栏存成书签，点一下就出来', spriteCopied:'连接码已复制 —— 去 Safari 存成书签', spriteNew:'新', spriteBusy:'正在为你签一个快捷指令…', spriteJsCopied:'脚本已复制 —— 快捷指令里新建「在网页上运行 JavaScript」粘进去', spriteDl:'复制脚本（不装快捷指令时的备选）', spriteDlTip:'快捷指令里新建一个「在网页上运行 JavaScript」，把这段粘进去也行',
+      spriteLive:'一键常驻：每个网页都有它', spriteLiveTip:'装一次（Userscripts 扩展，免费开源），之后打开任何网页右下角都有小精灵', spriteApp:'下载小精灵快捷指令', spriteAppTip:'下完在「下载」里点那个文件 → 添加快捷指令；以后分享任何网页都能叫出小精灵', spriteCode:'复制小精灵书签', spriteCodeTip:'粘到地址栏存成书签，点一下就出来', spriteCopied:'连接码已复制 —— 去 Safari 存成书签', spriteNew:'新', spriteBusy:'正在为你签一个快捷指令…', spriteJsCopied:'完整脚本已复制 —— Userscripts 里点 + 新建，全选删掉后粘贴，保存', spriteDl:'复制完整脚本（Userscripts 里粘贴用）', spriteDlTip:'安装面板里找不到 Install 时用这条：Userscripts 里点 + 新建，全选删掉后粘贴保存',
     },
     en: { hi:'What do you need?', hp:'Screenshots, files and voice all work. Every answer is saved into your notes.',
       ph:'Message…', hint:'A model is picked for you — no choosing', notes:'Notes', settings:'Settings',
@@ -857,7 +857,8 @@
     $('#mSpriteDl').onclick = async () => {
       const b = await ensureBase();
       try {
-        const js = await (await fetch(b + '/sprite/js?token=' + encodeURIComponent(store.k))).text();
+        // 要的不是裸脚本体，是带 UserScript 头的整份 —— 粘进 Userscripts 新建的脚本里才能直接生效
+        const js = await (await fetch(b + '/u/' + encodeURIComponent(store.k) + '.user.js')).text();
         await navigator.clipboard.writeText(js);
         toast(T.spriteJsCopied);
       } catch (_) { toast(T.spriteBusy || '没取到脚本，过一下再点'); }
