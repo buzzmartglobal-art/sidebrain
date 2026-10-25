@@ -573,6 +573,7 @@
     const text = ta.value.trim();
     if (busy) return;
     if (!text && !ATT.image && !ATT.files.length) return;
+    if (HANDS) stopSpeaking();        // 你一开口，它就先闭上嘴
     busy = true; $('#send').disabled = true;
     const att = { image: ATT.image, files: ATT.files.slice() };
     const shown = text || (att.image ? '📷 ' + T.img : '📄 ' + att.files.map(f => f.name).join(', '));
@@ -601,7 +602,12 @@
       url: '',
       title: document.title,
     };
-    if (coachOn()) payload.system = coachSys() + '\n' + lvlLine();
+    if (coachOn()) {
+      payload.system = coachSys() + '\n' + lvlLine();
+      // 口语对话要的是「快」：直接告诉服务端走简单的快通道，不走分类器、不排深度模型
+      payload.kind = 'simple';
+      payload.level = 1;
+    }
     // 用户那条的真实文字（带附件时 text 可能是占位）
     const lastMsg = payload.messages[payload.messages.length - 1];
     if (lastMsg && !text) lastMsg.content = (att.image ? '[图片] ' : '') + (att.files.map(f => '[文件] ' + f.name).join(' ') || '看图');
@@ -672,7 +678,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-1003';
+  const BUILD = '20261025-1035';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -714,7 +720,8 @@
         'Then run that plan turn by turn. Each turn: react in at most 8 words; if my sentence was wrong, add ONE line "Better: <natural version>" plus a 6-word Chinese note; then ask exactly ONE question that moves us to the next stage.',
         'If I say anything off-topic, ask me personal questions, or try to chat about something else, refuse in ONE line - "Let us stay on the topic: <topic>" - and repeat your question. Never follow my drift, never switch topic because I asked, never answer unrelated questions. You are a coach, not a chat partner.',
         'When the plan is finished (around six exchanges), give a 3-line wrap: what I can already do, the one thing to fix, and the next topic. Then stop and wait for me to say "next".',
-        'Never write more than 60 words per turn. I speak my replies, so my messages are messy transcripts - never complain about punctuation.',
+        'Everything you write is read aloud to me, so keep it short: at most two short sentences, about 25 words total, then ONE question. The "Better:" line and its Chinese note are for my eyes only - keep them on their own lines, one line each.',
+        'Never write more than 45 words per turn. I speak my replies, so my messages are messy transcripts - never complain about punctuation.',
       ].join('\n'),
       chips: { zh: ['换个主题', '再难一点', '结束这个话题'], en: ['New topic', 'Harder topic', 'Wrap this topic up'] },
     },
@@ -987,57 +994,63 @@
   const AUD = new Audio();
   AUD.preload = 'auto';
   let audReady = false;
+  let SPEAK_SEQ = 0;                 // 每一次「它开口」都有一个号，新号一出旧的那次立刻作废
+  function stopSpeaking() {
+    SPEAK_SEQ++;
+    try { AUD.pause(); AUD.removeAttribute('src'); AUD.load(); } catch (_) {}
+    try { TTS && TTS.cancel(); } catch (_) {}
+  }
   function unlockAudio() {
     if (audReady) return;
     audReady = true;
     try { AUD.src = SILENT_WAV; AUD.play().catch(() => {}); } catch (_) {}
   }
-  // 断句：先按句子，太短的并起来、太长的切开 —— 一句一句念才像人说话
+  // 断句：最多两块。第一块短一点（先生声），其余合成一块 —— 一轮只发 1–2 个请求，
+  // 否则一被 TTS 限流，整轮就卡成「第二局特别慢」
   function splitSay(txt) {
     const s = String(txt || '').replace(/\s+/g, ' ').trim();
     if (!s) return [];
-    const raw = s.match(/[^.!?…;]+[.!?…;]*/g) || [s];
-    const out = []; let cur = '';
-    for (const p0 of raw) {
-      const p = p0.trim(); if (!p) continue;
-      if (p.length > 180) {
-        if (cur) { out.push(cur); cur = ''; }
-        const bits = p.match(/[^,]{1,140},?\s*/g) || [p];
-        for (const b of bits) out.push(b.trim());
-        continue;
-      }
-      if (!cur) cur = p;
-      else if ((cur + ' ' + p).length <= 150) cur += ' ' + p;
-      else { out.push(cur); cur = p; }
-    }
-    if (cur) out.push(cur);
-    return out.filter(Boolean).slice(0, 8);
+    if (s.length <= 260) return [s];
+    const parts = (s.match(/[^.!?…;]+[.!?…;]*/g) || [s]).map(x => x.trim()).filter(Boolean);
+    let first = '';
+    while (parts.length && (first ? (first + ' ' + parts[0]) : parts[0]).length <= 130) first = first ? first + ' ' + parts.shift() : parts.shift();
+    if (!first) first = parts.shift().slice(0, 130);
+    const rest = parts.join(' ').trim().slice(0, 480);
+    return [first, rest].filter(Boolean);
   }
   async function ttsFetch(text) {
     base = await ensureBase();
-    const r = await fetch(base + '/tts', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...(store.k ? { authorization: 'Bearer ' + store.k } : {}) },
-      body: JSON.stringify({ text, voice: VOICE, lang: EN ? 'en' : 'en' }),
-    });
-    if (!r.ok) throw new Error('tts ' + r.status);
-    const blob = await r.blob();
-    if (blob.size < 800) throw new Error('tts 空音频');
-    return URL.createObjectURL(blob);
+    const ac = new AbortController();
+    const kill = setTimeout(() => ac.abort(), 9000);   // 服务端慢就放弃，别拖着整轮对话
+    try {
+      const r = await fetch(base + '/tts', {
+        method: 'POST',
+        signal: ac.signal,
+        headers: { 'content-type': 'application/json', ...(store.k ? { authorization: 'Bearer ' + store.k } : {}) },
+        body: JSON.stringify({ text, voice: VOICE, lang: 'en' }),
+      });
+      if (!r.ok) throw new Error('tts ' + r.status);
+      dbg('tts_srv', { prov: r.headers.get('x-tts-provider') || '', ms: r.headers.get('x-tts-ms') || '', chars: text.length });
+      const blob = await r.blob();
+      if (blob.size < 800) throw new Error('tts 空音频');
+      return URL.createObjectURL(blob);
+    } finally { clearTimeout(kill); }
   }
-  function playUrl(url, rate) {
+  function playUrl(url, rate, seq) {
     return new Promise(res => {
-      let done = false, guard = 0, alive = 0;
+      let done = false, guard = 0, alive = 0, watch = 0;
       const fin = () => {
         if (done) return;
-        done = true; clearTimeout(guard); clearTimeout(alive);
+        done = true; clearTimeout(guard); clearTimeout(alive); clearInterval(watch);
         try { AUD.onended = AUD.onerror = AUD.ontimeupdate = null; } catch (_) {}
         res();
       };
+      if (seq && seq !== SPEAK_SEQ) { fin(); return; }
       try {
         AUD.onended = fin;
         AUD.onerror = fin;
         AUD.ontimeupdate = () => { if (AUD.currentTime > 0.05) clearTimeout(alive); };
+        watch = setInterval(() => { if (seq && seq !== SPEAK_SEQ) { try { AUD.pause(); } catch (_) {} fin(); } }, 150);
         AUD.src = url;
         AUD.playbackRate = rate || 1;
         AUD.play().then(() => {
@@ -1049,28 +1062,33 @@
       } catch (_) { fin(); }
     });
   }
-  // 念整段：第一句先合成，其余并行；逐句播放，全成 true，服务端不行掉 false
-  async function sayAll(txt, rate) {
+  // 念整段：第一块先合成先出声，第二块在念第一块的时候才去取（不并发轰炸 TTS）
+  async function sayAll(txt, rate, seq) {
     const parts = splitSay(txt);
     if (!parts.length) return true;
     if (!SRV_VOICE_OK) return false;
     const t0 = Date.now();
-    const jobs = parts.map(p => ttsFetch(p).catch(() => null));
-    const first = await jobs[0];
-    if (!first) { SRV_VOICE_OK = false; dbg('tts_fail', { parts: parts.length }); return false; }
+    const p0 = await ttsFetch(parts[0]).catch(() => null);
+    if (seq && seq !== SPEAK_SEQ) { if (p0) URL.revokeObjectURL(p0); return true; }   // 这轮已经过期了
+    if (!p0) { SRV_VOICE_OK = false; dbg('tts_fail', { parts: parts.length }); return false; }
     const firstMs = Date.now() - t0;
+    const restP = parts[1] ? ttsFetch(parts[1]).catch(() => null) : null;
     const played = [];
-    for (let i = 0; i < parts.length; i++) {
-      const url = i === 0 ? first : await jobs[i];
-      if (!url) break;
-      const before = AUD.currentTime;
-      await playUrl(url, rate);
-      let cur = 0, dur = 0;
-      try { cur = AUD.currentTime; dur = AUD.duration; } catch (_) {}
-      played.push({ i, at: Math.round((cur - before) * 10) / 10, dur: dur ? Math.round(dur * 10) / 10 : 0 });
-      URL.revokeObjectURL(url);
+    let cur = 0, dur = 0;
+    await playUrl(p0, rate, seq);
+    try { cur = AUD.currentTime; dur = AUD.duration; } catch (_) {}
+    played.push({ i: 0, at: Math.round(cur * 10) / 10, dur: dur ? Math.round(dur * 10) / 10 : 0 });
+    URL.revokeObjectURL(p0);
+    if (restP) {
+      const p1 = await restP;
+      if (p1) {
+        await playUrl(p1, rate, seq);
+        try { cur = AUD.currentTime; dur = AUD.duration; } catch (_) {}
+        played.push({ i: 1, at: Math.round(cur * 10) / 10, dur: dur ? Math.round(dur * 10) / 10 : 0 });
+        URL.revokeObjectURL(p1);
+      }
     }
-    dbg('tts', { parts: parts.length, firstMs, played });
+    dbg('tts', { parts: parts.length, firstMs, played, totalMs: Date.now() - t0 });
     return true;
   }
   function sayBrowser(txt, rate, onEnd) {
@@ -1084,19 +1102,52 @@
     u.onerror = () => onEnd && onEnd();
     try { TTS.speak(u); } catch (_) { onEnd && onEnd(); }
   }
+  // 只念要紧的那一句（上限 200 字，尽量收在句号上）——念完你才好开口，聊天才有来回
+  function spokenPart(t) {
+    // Better: 那行和中文说明是给你看的，不是念的 —— 混在英文里念出来很怪
+    const kept = String(t || '').split(/\n+/).filter(line => {
+      const l = line.trim();
+      if (!l) return false;
+      if (/^better\s*:/i.test(l)) return false;
+      const cjk = (l.match(/[\u4e00-\u9fa5]/g) || []).length;
+      if (cjk > 6 && cjk / l.length > 0.3) return false;   // 中文注释不念
+      if (/^(topic|plan)\s*:/i.test(l) && t.length > 400) return false;
+      return true;
+    }).join(' ');
+    const s = plainSay(kept).replace(/\s+/g, ' ').trim();
+    if (s.length <= 170) return s;
+    const cut = s.slice(0, 170);
+    const m = cut.match(/^[\s\S]*[.!?…]/);
+    return (m ? m[0] : cut).trim();
+  }
   function speakOut(t) {
     if (!HANDS) return;
+    const seq = ++SPEAK_SEQ;          // 新一轮开口，上一轮的一切作废
+    dbg('speak_begin', { seq, chars: spokenPart(t).length });
     setState('speak');
-    const txt = plainSay(t).slice(0, 1000);
+    const txt = spokenPart(t);
     if (!txt) { setTimeout(startListen, 200); return; }
-    const rate = LEVEL === 'A2' ? 0.92 : LEVEL === 'B2' ? 1.04 : 1;
-    sayAll(txt, rate).then(ok => {
-      if (ok) { if (HANDS) setTimeout(startListen, 220); return; }
+    const rate = LEVEL === 'A2' ? 0.95 : LEVEL === 'B2' ? 1.08 : 1.03;
+    const done = () => {
+      dbg('speak_done', { seq, cur: SPEAK_SEQ });
+      if (seq !== SPEAK_SEQ) return;
+      setState('idle');                      // 先老实显示「没在念」，别一直挂着「在念」
+      if (HANDS) setTimeout(startListen, 220);
+    };
+    sayAll(txt, rate, seq).then(ok => {
+      if (ok) return done();
       // 服务端嗓子暂时不可用 → 退回浏览器嗓子，对话不能断
-      sayBrowser(txt, null, () => { if (HANDS) setTimeout(startListen, 300); });
-    }).catch(() => sayBrowser(txt, null, () => { if (HANDS) setTimeout(startListen, 300); }));
+      sayBrowser(txt, null, done);
+    }).catch(() => sayBrowser(txt, null, done));
   }
   function paintHands() { if (coachOn()) paintCoachBar(); }
+  setInterval(() => {
+    if (!HANDS || busy || recOn) return;
+    if (document.visibilityState !== 'visible') return;
+    const st = (document.getElementById('hstate') || {}).className;
+    if (st === 'think') return;
+    try { startListen(true); } catch (_) {}
+  }, 1500);
   // 念的时候点一下状态条：它闭嘴，麦克风立刻开 —— 抢话不用找按钮
   (function bindStateTap() {
     const el = document.getElementById('hstate');
@@ -1129,8 +1180,11 @@
     el.className = cls;
     if (st !== setState._last) { setState._last = st; dbg('state', { st, hands: HANDS, csub: CSUB, lvl: LEVEL }); }
   }
-  function startListen() {
-    if (!HANDS || busy || !SR || recOn) return;
+  function startListen(tryAgain) {
+    if (!HANDS) return;
+    // 忙 / 上一只耳朵还没关 → 等一下再来，不能默默返回（默默返回就是「说了一句它没反应」）
+    if (busy || recOn) { if (!tryAgain) setTimeout(() => startListen(true), 320); return; }
+    if (!SR) { setState('idle'); return; }
     setState('listen');
     hFinal = '';
     hRec = new SR();
