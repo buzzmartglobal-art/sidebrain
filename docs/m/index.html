@@ -634,7 +634,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-0100';
+  const BUILD = '20261025-0955';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -654,6 +654,17 @@
 
   /* ---------- 英文教练模式 ---------- */
   const COACH_MODES = {
+    free: {
+      zh: '闲聊', en: 'Just chat',
+      sys: [
+        'You are my friendly English speaking partner. Free chat is allowed - any topic I bring up, you follow.',
+        'Keep it spoken: 1-3 short sentences per turn, natural everyday English, and always end with something that makes me want to answer back.',
+        'Only correct me when my English would actually confuse a native speaker: then put ONE line "Better: <natural version>" plus a 6-word Chinese note, and carry on with the conversation.',
+        'Never lecture, never list grammar rules, never ask me to repeat drills. If I switch to Chinese, answer in English and gently pull me back.',
+        'Stay at my level: short sentences, common words, no idioms I would not know.',
+      ].join('\n'),
+      chips: { zh: ['随便聊聊', '聊聊动画', '今天发生了什么'], en: ['Just chat with me', 'Talk about animation', 'Ask me about my day'] },
+    },
     natural: {
       zh: '自然对话', en: 'Natural talk',
       sys: [
@@ -785,6 +796,7 @@
         // 照 ELSA / Speak 的做法：进「跟读」和「角色扮演」，教练先开口，用户不用想第一句
         if (!changed || !coachOn() || busy) return;
         if (k === 'read' && !READ_TARGET) { ta.value = 'Give me a sentence to read aloud.'; send(); }
+        else if (k === 'free') { ta.value = 'Say hi in one short line, then ask what I feel like talking about.'; send(); }
         else if (k === 'scenario' && !CHAT.some(m => m.role === 'assistant')) { ta.value = 'Start the roleplay. Pick a scene that fits my level and begin.'; send(); }
       };
       bar.appendChild(b);
@@ -875,12 +887,9 @@
   }
   function replayLast(rate) {
     const txt = lastAssistant();
-    if (!txt || !TTS) return;
-    try { TTS.cancel(); } catch (_) {}
-    const u = new SpeechSynthesisUtterance(plainSay(txt).slice(0, 800));
-    try { const v = pickVoice(); if (v) u.voice = v; } catch (_) {}
-    u.lang = 'en-US'; u.rate = rate || 0.7;
-    TTS.speak(u);
+    if (!txt) return;
+    setState('speak');
+    sayAll(plainSay(txt).slice(0, 800), rate || 0.72).then(() => setState(HANDS ? 'listen' : 'idle'));
   }
 
   /* ---------- 免手对话：自动朗读 + 自动收音 ---------- */
@@ -898,6 +907,7 @@
   // iOS 必须由一次用户手势把嗓子叫醒，否则第一次 speak() 是无声的
   let ttsReady = false;
   function unlockTTS() {
+    unlockAudio();                       // 真嗓子那边也要先被手指头叫醒
     if (!TTS || ttsReady) return;
     try {
       const u = new SpeechSynthesisUtterance(' ');
@@ -914,20 +924,127 @@
       .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, ' ')
       .replace(/\s+/g, ' ').trim();
   }
+  /* ---------- 真人的嗓子：服务端神经 TTS（ElevenLabs / Gemini），一句一个请求 ---------- */
+  // 为什么一句一请求：整段合成要等 3-6 秒；切句后第一句 1.5 秒就能出声，
+  // 后面几句在念第一句的时候已经并行在服务器上合成了。
+  const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
+  let VOICE = 'aoede';
+  try { const v = localStorage.getItem('sb_voice'); if (v) VOICE = v; } catch (_) {}
+  let SRV_VOICE_OK = true;
+  let EL_HAS = false;
+  async function loadTtsKey() {
+    try {
+      const j = await api('/account/tts-key', null, { method: 'GET' });
+      if (j && typeof j.has === 'boolean' && j.has !== EL_HAS) { EL_HAS = j.has; try { paintMenu(); } catch (_) {} }
+      if (j && j.voice && !localStorage.getItem('sb_voice')) VOICE = j.voice;
+    } catch (_) {}
+  }
+  const pickVoiceName = () => (VOICE === 'aoede' ? (EN ? 'Aoede · warm female' : 'Aoede · 温暖女声')
+    : VOICE === 'puck' ? (EN ? 'Puck · lively male' : 'Puck · 活泼男声')
+    : VOICE === 'kore' ? (EN ? 'Kore · firm female' : 'Kore · 干练女声')
+    : VOICE === 'leda' ? (EN ? 'Leda · young female' : 'Leda · 年轻女声') : VOICE);
+  const AUD = new Audio();
+  AUD.preload = 'auto';
+  let audReady = false;
+  function unlockAudio() {
+    if (audReady) return;
+    audReady = true;
+    try { AUD.src = SILENT_WAV; AUD.play().catch(() => {}); } catch (_) {}
+  }
+  // 断句：先按句子，太短的并起来、太长的切开 —— 一句一句念才像人说话
+  function splitSay(txt) {
+    const s = String(txt || '').replace(/\s+/g, ' ').trim();
+    if (!s) return [];
+    const raw = s.match(/[^.!?…;]+[.!?…;]*/g) || [s];
+    const out = []; let cur = '';
+    for (const p0 of raw) {
+      const p = p0.trim(); if (!p) continue;
+      if (p.length > 180) {
+        if (cur) { out.push(cur); cur = ''; }
+        const bits = p.match(/[^,]{1,140},?\s*/g) || [p];
+        for (const b of bits) out.push(b.trim());
+        continue;
+      }
+      if (!cur) cur = p;
+      else if ((cur + ' ' + p).length <= 150) cur += ' ' + p;
+      else { out.push(cur); cur = p; }
+    }
+    if (cur) out.push(cur);
+    return out.filter(Boolean).slice(0, 8);
+  }
+  async function ttsFetch(text) {
+    base = await ensureBase();
+    const r = await fetch(base + '/tts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(store.k ? { authorization: 'Bearer ' + store.k } : {}) },
+      body: JSON.stringify({ text, voice: VOICE, lang: EN ? 'en' : 'en' }),
+    });
+    if (!r.ok) throw new Error('tts ' + r.status);
+    const blob = await r.blob();
+    if (blob.size < 800) throw new Error('tts 空音频');
+    return URL.createObjectURL(blob);
+  }
+  function playUrl(url, rate) {
+    return new Promise(res => {
+      let done = false, guard = 0, alive = 0;
+      const fin = () => {
+        if (done) return;
+        done = true; clearTimeout(guard); clearTimeout(alive);
+        try { AUD.onended = AUD.onerror = null; } catch (_) {}
+        res();
+      };
+      try {
+        AUD.onended = fin;
+        AUD.onerror = fin;
+        AUD.src = url;
+        AUD.playbackRate = rate || 1;
+        AUD.play().then(() => {
+          // 没真在播（无声环境 / 断网）就别卡住对话循环
+          alive = setTimeout(() => { try { if (AUD.paused) fin(); } catch (_) { fin(); } }, 800);
+          const dur = AUD.duration && isFinite(AUD.duration) ? AUD.duration : 6;
+          guard = setTimeout(fin, Math.max(1500, dur * 1000 / (rate || 1) + 1500));
+        }).catch(fin);
+      } catch (_) { fin(); }
+    });
+  }
+  // 念整段：第一句先合成，其余并行；逐句播放，全成 true，服务端不行掉 false
+  async function sayAll(txt, rate) {
+    const parts = splitSay(txt);
+    if (!parts.length) return true;
+    if (!SRV_VOICE_OK) return false;
+    const jobs = parts.map(p => ttsFetch(p).catch(() => null));
+    const first = await jobs[0];
+    if (!first) { SRV_VOICE_OK = false; return false; }
+    for (let i = 0; i < parts.length; i++) {
+      const url = i === 0 ? first : await jobs[i];
+      if (!url) break;
+      await playUrl(url, rate);
+      URL.revokeObjectURL(url);
+    }
+    return true;
+  }
+  function sayBrowser(txt, rate, onEnd) {
+    if (!TTS) { onEnd && onEnd(); return; }
+    try { TTS.cancel(); } catch (_) {}
+    const u = new SpeechSynthesisUtterance(String(txt).slice(0, 800));
+    try { const v = pickVoice(); if (v) u.voice = v; } catch (_) {}
+    u.lang = 'en-US';
+    u.rate = rate || (LEVEL === 'A2' ? 0.84 : LEVEL === 'B2' ? 1.0 : 0.93);
+    u.onend = () => onEnd && onEnd();
+    u.onerror = () => onEnd && onEnd();
+    try { TTS.speak(u); } catch (_) { onEnd && onEnd(); }
+  }
   function speakOut(t) {
     if (!HANDS) return;
     setState('speak');
     const txt = plainSay(t).slice(0, 1000);
     if (!txt) { setTimeout(startListen, 200); return; }
-    if (!TTS) { setTimeout(startListen, 200); return; }
-    try { TTS.cancel(); } catch (_) {}
-    const u = new SpeechSynthesisUtterance(txt);
-    try { const v = pickVoice(); if (v) u.voice = v; } catch (_) {}
-    u.lang = 'en-US';
-    u.rate = LEVEL === 'A2' ? 0.84 : LEVEL === 'B2' ? 1.0 : 0.93;
-    u.onend = () => { if (HANDS) setTimeout(startListen, 200); };
-    u.onerror = () => { if (HANDS) setTimeout(startListen, 400); };
-    try { TTS.speak(u); } catch (_) { setTimeout(startListen, 300); }
+    const rate = LEVEL === 'A2' ? 0.92 : LEVEL === 'B2' ? 1.04 : 1;
+    sayAll(txt, rate).then(ok => {
+      if (ok) { if (HANDS) setTimeout(startListen, 220); return; }
+      // 服务端嗓子暂时不可用 → 退回浏览器嗓子，对话不能断
+      sayBrowser(txt, null, () => { if (HANDS) setTimeout(startListen, 300); });
+    }).catch(() => sayBrowser(txt, null, () => { if (HANDS) setTimeout(startListen, 300); }));
   }
   function paintHands() { if (coachOn()) paintCoachBar(); }
   function toggleHands() {
@@ -1314,7 +1431,7 @@
 
   /* ---------- 设置 ---------- */
   const menuSheet = $('#menuSheet');
-  $('#btnMenu').onclick = () => { openSheet(menuSheet); paintMenu(); };
+  $('#btnMenu').onclick = () => { openSheet(menuSheet); paintMenu(); loadTtsKey(); };
   $('#menuBack').onclick = () => closeSheet(menuSheet);
   function paintMenu() {
     const left = ACCT && ACCT.daysLeft != null ? Math.max(0, Math.ceil(ACCT.daysLeft)) : null;
@@ -1335,6 +1452,18 @@
         (EN ? (coachOn() ? 'ON · talk in English, I fix your sentence first' : 'Practice English: I correct your sentence, then keep the chat going') :
               (coachOn() ? '已开启 · 用英文说，我先把你的句子改地道' : '练英文：先把你的句子改地道，再接着聊')) +
         '</span></div><div class="k">' + (coachOn() ? (EN ? 'ON' : '开') : (EN ? 'OFF' : '关')) + ' ›</div></div>' +
+      '<div class="sec">声音</div>' +
+      '<div class="rowitem" id="mVoiceTop"><div class="t"><b>🔊 ' + (EN ? 'Voice' : '嗓音') + '</b><span>' +
+        esc(pickVoiceName()) + (EL_HAS ? ' · ElevenLabs' : '') + '</span></div><div class="k">' + (EN ? 'change' : '换') + ' ›</div></div>' +
+      '<div id="voiceBox" style="display:none;padding:4px 14px 10px">' +
+        ['aoede', 'puck', 'kore', 'leda'].map(v => '<button class="cchip vsel' + (VOICE === v ? ' act' : '') + '" data-v="' + v + '">' +
+          ({ aoede: EN ? 'Aoede · warm female' : 'Aoede · 温暖女声', puck: EN ? 'Puck · lively male' : 'Puck · 活泼男声', kore: EN ? 'Kore · firm female' : 'Kore · 干练女声', leda: EN ? 'Leda · young female' : 'Leda · 年轻女声' }[v]) + '</button>').join(' ') +
+        '<div class="hint" style="padding:10px 0 6px">' + (EN ? 'Tap a voice to hear it.' : '点一下就能听到。') + '</div>' +
+        '<div class="hint" style="padding:2px 0 8px">' + (EN ? 'Want the ElevenLabs voice? Paste your key once — every sentence after that uses it.' : '想用你自己的 ElevenLabs 声音？把 key 粘一次，之后所有句子都走它。') + '</div>' +
+        '<input id="elKey" class="inp" placeholder="xi-api-key" autocomplete="off" spellcheck="false" value="' + (EL_HAS ? '•••• 已保存' : '') + '" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a2f3a;background:#12151c;color:#e6e9ef;font-size:14px">' +
+        '<div style="display:flex;gap:8px;margin-top:8px"><button class="cchip" id="elSave">' + (EN ? 'Save key' : '保存 key') + '</button>' +
+        '<button class="cchip" id="elClear">' + (EN ? 'Remove' : '清除') + '</button></div>' +
+      '</div>' +
       '<div class="sec">用</div>' +
       '<div class="rowitem" id="mNotes"><div class="t"><b>🗒 ' + T.notes + '</b></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mExport"><div class="t"><b>⬇ ' + T.exportV + '</b><span>' + T.exportTip + '</span></div><div class="k">›</div></div>' +
@@ -1343,7 +1472,34 @@
       '<div class="sec">关于</div>' +
       '<div class="rowitem"><div class="t"><b>Sidebrain</b><span>' + (EN ? 'Routes each message to the cheapest model that fits. Notes stay in plain Markdown.' : '每条消息自动交给最合适又最便宜的模型。笔记就是普通 Markdown 文件。') + '</span></div></div>' +
       '<div class="hint" style="padding-top:16px">' + (EN ? 'Tip: Share → Add to Home Screen to use it like an app.' : '提示：点 Safari 的分享 → 添加到主屏幕，用起来就跟 App 一样。') + '</div>' +
-      '<div class="hint" style="text-align:center;opacity:.45;font-size:11.5px;padding-top:6px">v10-24 22:38</div>';
+      '<div class="hint" style="text-align:center;opacity:.45;font-size:11.5px;padding-top:6px">v10-25 09:55</div>';
+    $('#mVoiceTop').onclick = () => {
+      const box = $('#voiceBox');
+      box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    };
+    document.querySelectorAll('.vsel').forEach(b => {
+      b.onclick = async () => {
+        VOICE = b.dataset.v;
+        try { localStorage.setItem('sb_voice', VOICE); } catch (_) {}
+        document.querySelectorAll('.vsel').forEach(x => x.classList.toggle('act', x.dataset.v === VOICE));
+        unlockTTS();
+        sayAll(EN ? 'Hi, this is how I sound. Let us keep going.' : 'Hi, this is how I sound.', 1);
+        try { await api('/account/tts-key', { voice: VOICE }); } catch (_) {}
+        toast('🔊 ' + pickVoiceName(), 1400);
+      };
+    });
+    $('#elSave').onclick = async () => {
+      const k = ($('#elKey').value || '').trim();
+      if (!/^[A-Za-z0-9_\-]{20,}$/.test(k)) { toast(EN ? 'That does not look like a key' : '这个不像 key', 2000); return; }
+      try {
+        await api('/account/tts-key', { key: k });
+        EL_HAS = true; toast(EN ? 'ElevenLabs on — try the voice again' : 'ElevenLabs 接上了，再点一次嗓音试试', 2400);
+        $('#elKey').value = '•••• 已保存';
+      } catch (e) { toast(e.message || 'save failed', 2400); }
+    };
+    $('#elClear').onclick = async () => {
+      try { await api('/account/tts-key', { key: '' }); EL_HAS = false; $('#elKey').value = ''; toast('✓', 1200); } catch (_) {}
+    };
     $('#mCoach').onclick = () => {
       setMode(coachOn() ? 'chat' : 'coach');
       closeSheet(menuSheet);
