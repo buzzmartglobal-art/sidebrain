@@ -873,11 +873,15 @@
     };
     $('#mSpriteCode').onclick = async () => {
       const b = await ensureBase();
-      const code = 'javascript:(function(){if(window.__SB_SPRITE__)return;window.__SB_TOKEN__=' + JSON.stringify(store.k) +
-        ';window.__SB_BASE__=' + JSON.stringify(b) + ';var t=setTimeout(function(){if(!document.getElementById("__cola_ai_host__")){open(' +
-        JSON.stringify(b) + '+"\/m\/?u="+encodeURIComponent(location.href),"_blank");}},3000);var s=document.createElement("script");s.src=' +
-        JSON.stringify(b + '/sprite.js') + ';s.onload=function(){clearTimeout(t);};s.onerror=function(){clearTimeout(t);open(' + JSON.stringify(b) +
-        '+"\/m\/?u="+encodeURIComponent(location.href),"_blank");};document.documentElement.appendChild(s);})()';
+      // 书签（bookmarklet）：不用装任何扩展。基础地址每次现查 endpoint.json，
+      // 所以隧道换域名也不会失效 —— 这是 iPhone 上唯一不依赖第三方的常驻方式。
+      const EP = 'https://buzzmartglobal-art.github.io/sidebrain/endpoint.json';
+      const code = 'javascript:(function(){if(window.__SB_SPRITE__)return;var TK=' + JSON.stringify(store.k) +
+        ',B=' + JSON.stringify(b) + ',EP=' + JSON.stringify(EP) +
+        ';function run(x){if(window.__SB_SPRITE__)return;window.__SB_TOKEN__=TK;window.__SB_BASE__=x;' +
+        'var s=document.createElement("script");s.src=x+"/sprite.js?"+Date.now();s.onerror=function(){open(x+"/m/?u="+encodeURIComponent(location.href),"_blank");};' +
+        'document.documentElement.appendChild(s);}' +
+        'fetch(EP,{cache:"no-store"}).then(function(r){return r.json();}).then(function(j){run(j&&j.serverBase?j.serverBase:B);}).catch(function(){run(B);});})()';
       try { await navigator.clipboard.writeText(code); toast(T.spriteCopied); }
       catch (_) { prompt(T.spriteCode, code); }
     };
@@ -904,6 +908,18 @@
   $('#gHow').textContent = T.howto;
   $('#gSprite').textContent = T.sprite;
   paintQuick();
+  // 带连接码的链接（?k=sb_…）：自己用的直通入口，点开就是已登录状态，不用输邮箱
+  (function takeTokenFromUrl() {
+    try {
+      const q = new URLSearchParams(location.search);
+      const tk = q.get('k') || q.get('token');
+      if (tk && /^sb_[A-Za-z0-9_]+$/.test(tk)) { store.k = tk; }
+      const bs = q.get('base');
+      if (bs && /^https?:\/\//.test(bs)) store.base = bs;
+      if (tk) history.replaceState(null, '', location.pathname + '?u=' + encodeURIComponent(location.pathname));
+    } catch (_) {}
+  })();
+
   paintChat();
   if (store.k) refreshAcct(); else $('#gate').classList.remove('hide');
   setInterval(() => { if (store.k && !ACCT) refreshAcct(); }, 60000);
