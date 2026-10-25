@@ -78,10 +78,19 @@
 
   /* 输入区 */
   body.inbrowser #composer{padding-bottom:calc(var(--sb) + 26px)}
+  #upbar{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 6px);z-index:80;
+         background:linear-gradient(140deg,#5b8cff,#8b5cf6);color:#fff;font-size:12.5px;font-weight:600;
+         padding:7px 14px;border-radius:20px;box-shadow:0 8px 22px rgba(0,0,0,.35);cursor:pointer}
   .pill{display:none;flex:0 0 auto;margin-left:auto;font-size:11.5px;font-weight:600;letter-spacing:.2px;
         color:#c9d7ff;background:rgba(91,140,255,.16);border:1px solid rgba(91,140,255,.35);
         border-radius:20px;padding:3px 9px;white-space:nowrap}
   .pill.on{display:inline-block}
+  .coachbar{display:none;gap:7px;padding:6px 12px 2px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .coachbar.on{display:flex}
+  .cchip{flex:0 0 auto;font:600 13px/1 -apple-system,"PingFang SC",sans-serif;color:#a9b7d1;background:#151a23;
+         border:1px solid #262d3a;border-radius:20px;padding:8px 13px;white-space:nowrap}
+  .cchip.act{color:#fff;background:linear-gradient(140deg,#5b8cff,#8b5cf6);border-color:transparent}
+  body.coachmode .quick button{display:none}
   #composer{flex:0 0 auto;padding:8px 12px calc(var(--sb) + 10px);background:rgba(13,15,19,.96);
     backdrop-filter:blur(14px);border-top:1px solid var(--line)}
   .attbar{display:flex;gap:8px;flex-wrap:wrap;padding:0 2px 8px}
@@ -185,6 +194,8 @@
       <div class="quick" id="quick"></div>
     </div>
   </div>
+
+  <div class="coachbar" id="coachbar"></div>
 
   <div id="composer">
     <div class="attbar" id="attbar"></div>
@@ -519,7 +530,7 @@
       url: '',
       title: document.title,
     };
-    if (coachOn()) payload.system = COACH_SYS;
+    if (coachOn()) payload.system = coachSys();
     // 用户那条的真实文字（带附件时 text 可能是占位）
     const lastMsg = payload.messages[payload.messages.length - 1];
     if (lastMsg && !text) lastMsg.content = (att.image ? '[图片] ' : '') + (att.files.map(f => '[文件] ' + f.name).join(' ') || '看图');
@@ -582,24 +593,90 @@
   $('#gMail').addEventListener('keydown', e => { if (e.key === 'Enter') $('#gGo').click(); });
 
   /* ---------- 快捷问题 ---------- */
+  /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
+  const BUILD = '20261024-2322';
+  function showUpdateBar() {
+    if (document.getElementById('upbar')) return;
+    const d = document.createElement('div');
+    d.id = 'upbar';
+    d.textContent = (EN ? 'New version ready · tap to reload' : '有新版本 · 点这里刷新');
+    d.onclick = () => location.replace(location.pathname + location.search);
+    document.body.appendChild(d);
+  }
+  async function checkFresh() {
+    try {
+      const r = await fetch(location.pathname + '?fresh=' + Date.now(), { cache: 'no-store' });
+      const t = await r.text();
+      const m = /const BUILD = '([^']+)'/.exec(t);
+      if (m && m[1] && m[1] !== BUILD) showUpdateBar();
+    } catch (_) {}
+  }
+
   /* ---------- 英文教练模式 ---------- */
-  const COACH_SYS = [
-    'You are the user\u2019s personal English coach inside their phone app.',
-    'Rules:',
-    '1. Always answer in English, natural and conversational, level B1-B2, 2-4 short sentences.',
-    '2. If their last message has any grammar or wording problem, start your reply with "Better: <their sentence fixed>" and then one short line in Chinese explaining what changed.',
-    '3. If their sentence is already fine, do not invent corrections.',
-    '4. Always finish with exactly one short question that keeps the conversation going.',
-    '5. Never give a lecture, never list more than 3 items. You are a coach, not a textbook.',
-    '6. Match the topic they bring up; if they ask to practice a scenario, role-play it as the other person.',
-  ].join('\n');
-  const COACH_CHIPS = {
-    zh: ['热身：聊今天', '面试：自我介绍', '点咖啡', '帮我改这段英文'],
-    en: ['Warm-up: my day', 'Interview: tell me about you', 'Order a coffee', 'Fix this paragraph'],
+  const COACH_MODES = {
+    talk: {
+      zh: '主题演讲', en: 'Short talk',
+      sys: [
+        'You are my English speaking coach for short talks.',
+        'First, hand me ONE concrete speaking topic that fits my world (animation, filmmaking, storytelling, product) - just the topic and one line on what to cover.',
+        'I will then speak (my message is a transcript of my speaking, it may be messy and unpunctuated - do not complain about that).',
+        'Grade me on Content / Structure / Language, each 1-5, with ONE concrete fix each. Quote my weakest sentence, then give the natural version as "Better: ...".',
+        'End with one follow-up question. Total feedback under 130 words. No vague praise.',
+      ].join('\n'),
+      chips: { zh: ['给我一个主题', '我在做动画创作', '换个更难的话题'], en: ['Give me a topic', 'I work in animation', 'Something harder'] },
+    },
+    convo: {
+      zh: '对话', en: 'Conversation',
+      sys: [
+        'You are my conversation partner AND English coach.',
+        'Pick one realistic everyday or work scenario and role-play the other person. Stay in character, natural spoken English, 1-3 sentences per turn.',
+        'If my wording would confuse a native speaker, add one line starting "Better: " right after your in-character reply, plus a 8-word Chinese note on why.',
+        'Always end your turn with a question or a hook that keeps me talking. Never lecture.',
+      ].join('\n'),
+      chips: { zh: ['咖啡店点单', '面试：自我介绍', '和同事聊周末', '打电话改预约'], en: ['Order a coffee', 'Interview: about me', 'Small talk with a coworker', 'Reschedule by phone'] },
+    },
+    writing: {
+      zh: '写作语法', en: 'Writing & grammar',
+      sys: [
+        'You are my writing coach.',
+        'When I send text: (1) list the grammar / word-choice problems as "wrong -> right" lines; (2) give one clean rewritten version at my level; (3) at most 3 takeaways, one line each in Chinese.',
+        'Keep the whole reply under 150 words. Keep my voice - do not upgrade me into a different writer.',
+        'If my text is already correct, say so in one line and suggest one way to make it sharper.',
+      ].join('\n'),
+      chips: { zh: ['帮我改这段英文', '改一封邮件', '这段有什么语法错'], en: ['Fix this paragraph', 'Fix this email', 'Any grammar mistakes?'] },
+    },
+    reading: {
+      zh: '阅读问答', en: 'Read & answer',
+      sys: [
+        'You are my English reading and listening coach.',
+        'Each round: give me a short interesting passage (~120 words, B1-B2) or use the text I share, then ask me 3 comprehension questions in English.',
+        'After I answer, correct my English, point out what I missed in the passage, and teach 2 useful phrases from it with one example each.',
+        'When I say "next", start a new round with a different passage. Keep each reply under 170 words.',
+      ].join('\n'),
+      chips: { zh: ['给我一段短文', '给我一个听力练习', '下一段'], en: ['Give me a passage', 'Listening practice', 'Next one'] },
+    },
   };
   let MODE = 'chat';
   try { MODE = store.mode === 'coach' ? 'coach' : 'chat'; } catch (_) {}
   const coachOn = () => MODE === 'coach';
+  let CSUB = 'talk';
+  try { if (COACH_MODES[store.csub]) CSUB = store.csub; } catch (_) {}
+  const coachSys = () => (COACH_MODES[CSUB] || COACH_MODES.talk).sys;
+  function paintCoachBar() {
+    const bar = $('#coachbar');
+    if (!bar) return;
+    bar.classList.toggle('on', coachOn());
+    bar.innerHTML = '';
+    Object.keys(COACH_MODES).forEach(k => {
+      const m = COACH_MODES[k];
+      const b = document.createElement('button');
+      b.className = 'cchip' + (k === CSUB ? ' act' : '');
+      b.textContent = (EN ? m.en : m.zh);
+      b.onclick = () => { CSUB = k; try { store.csub = k; } catch (_) {} paintCoachBar(); paintQuick(); };
+      bar.appendChild(b);
+    });
+  }
+
   function paintMode() {
     const pill = $('#modepill');
     if (pill) {
@@ -612,6 +689,7 @@
       ? (EN ? 'Talk in English. I\u2019ll fix your sentence first, then keep the chat going.' : '用英文说，我先把你的句子改地道，再接着聊。')
       : T.hp;
     paintQuick();
+    paintCoachBar();
     document.body.classList.toggle('coachmode', coachOn());
   }
   function setMode(m) {
@@ -623,7 +701,7 @@
 
   function paintQuick() {
     const q = $('#quick'); q.innerHTML = '';
-    const chips = coachOn() ? (EN ? COACH_CHIPS.en : COACH_CHIPS.zh) : [T.q1, T.q2, T.q3];
+    const chips = coachOn() ? ((COACH_MODES[CSUB] || COACH_MODES.talk).chips[EN ? 'en' : 'zh']) : [T.q1, T.q2, T.q3];
     chips.forEach(s => {
       const b = document.createElement('button');
       b.textContent = s;
@@ -989,6 +1067,8 @@
   paintMode();
   paintChat();
   if (store.k) refreshAcct(); else $('#gate').classList.remove('hide');
+  checkFresh();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkFresh(); });
   setInterval(() => { if (store.k && !ACCT) refreshAcct(); }, 60000);
   window.addEventListener('online', () => refreshAcct());
 })();
