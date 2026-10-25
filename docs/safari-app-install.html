@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sidebrain for Safari · 安装说明书</title>
+<meta name="theme-color" content="#0d0f13">
+<style>
+:root{--bg:#0d0f13;--card:#14171c;--line:#262b33;--fg:#e8ebf0;--dim:#8b93a1;--acc:#5b8cff;--acc2:#8b5cf6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.7 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",system-ui,sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:780px;margin:0 auto;padding:28px 18px 90px}
+a{color:#9dbaff}
+h1{font-size:28px;line-height:1.25;margin:0 0 6px;letter-spacing:-.5px}
+.lead{color:var(--dim);font-size:15.5px;margin:0 0 22px}
+.draft{background:rgba(255,190,80,.1);border:1px solid rgba(255,190,80,.3);color:#f0dcb4;border-radius:12px;padding:11px 13px;font-size:13.5px;margin:0 0 22px}
+h2{font-size:20px;margin:34px 0 4px;letter-spacing:-.2px}
+h2 .n{display:inline-flex;width:26px;height:26px;border-radius:8px;background:linear-gradient(140deg,var(--acc),var(--acc2));color:#fff;font-size:14px;align-items:center;justify-content:center;margin-right:9px;vertical-align:2px}
+h3{font-size:16px;margin:22px 0 2px;color:#cfd8e8}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 18px 6px;margin:14px 0}
+ol,ul{margin:6px 0 12px;padding-left:22px;color:#c6ceda;font-size:15.5px}
+ol li,ul li{margin:9px 0}
+b{color:#fff}
+code{background:#0a0c10;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.path{display:inline-block;background:#0b0e14;border:1px solid var(--line);border-radius:7px;padding:1px 8px;font-size:13.5px;color:#cfd6e4;white-space:nowrap;margin:0 1px}
+.tip{border-left:3px solid var(--acc);padding:2px 0 2px 12px;color:#a9b6c9;font-size:14px;margin:10px 0 16px}
+.warn{background:rgba(255,90,90,.08);border:1px solid rgba(255,110,110,.25);border-radius:10px;padding:10px 12px;font-size:14px;color:#f0c4c4;margin:12px 0}
+.shot{border:1px dashed #3a4352;border-radius:12px;padding:26px 14px;text-align:center;color:#5f6773;font-size:13px;margin:12px 0}
+table{width:100%;border-collapse:collapse;font-size:14.5px;margin:10px 0 16px}
+td,th{border-bottom:1px solid var(--line);padding:9px 4px;text-align:left;vertical-align:top}
+th{color:var(--dim);font-weight:500;font-size:13px}
+.foot{color:#5f6773;font-size:13px;text-align:center;margin:38px 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Sidebrain for Safari · 安装说明书</h1>
+  <p class="lead">自己的扩展上架 App Store 之后，用户看到的就这一份。目标：<b>从零到用上，不超过 6 步，全程不用看源码、不用进第三方面板。</b></p>
+
+  <div class="draft">这是<b>上架后给用户的正式说明书（草稿）</b>。App Store 链接、截图位置等扩展通过审核后填。现在写它，是为了把扩展本身的安装体验倒推着定下来 —— 说明书要是超过 6 步，说明产品设计有问题，不是说明书的问题。</div>
+
+  <h2><span class="n">0</span>装之前，先看一眼这两件事</h2>
+  <div class="card">
+    <ul>
+      <li>要 <b>iPhone 上 iOS 26 以上</b>，或者 <b>Mac 上 macOS 26 以上</b>（Safari 扩展的系统要求）。</li>
+      <li>准备一个邮箱 + 一个付款方式（前 7 天免费，第 8 天开始 $8/月；不想用了在任何时候取消，不再扣费）。</li>
+    </ul>
+    <p class="tip">不用准备 API key，不用挑模型 —— 我们来挑。</p>
+  </div>
+
+  <h2><span class="n">1</span>iPhone 上装（6 步）</h2>
+  <div class="card">
+    <ol>
+      <li><b>App Store 搜「Sidebrain」</b>，点 <b>获取</b>。等图标出现在桌面。<br>
+        <span class="tip">也可以直接点我们给的链接：会自动跳到 App Store 的 Sidebrain 页。</span></li>
+      <li><b>点开 Sidebrain 这个 App</b>（就一次）。它会显示一个绿勾和一句话：「扩展已经装好了」——这一步只是让系统把扩展注册进去。</li>
+      <li>回到桌面，打开 <b>设置</b> → 往下划到 <span class="path">应用</span> → <span class="path">Safari</span> → <span class="path">扩展</span> → 点 <b>Sidebrain</b> → 打开开关，权限选 <b>允许</b>。</li>
+      <li>打开 <b>Safari</b>，随便进一个网页。点地址栏左边的 <b>aA</b>（或分享按钮左边的扩展图标）→ 点 <b>Sidebrain</b>。侧边栏会从右边滑出来。</li>
+      <li><b>输你的邮箱 → 开始用。</b>第一次进来不选模型、不填 key，直接问就行。</li>
+      <li>（推荐，一次就好）回到 Safari 点 <b>aA</b> → <b>管理扩展</b> → 把 Sidebrain 的开关打开到「始终允许」，以后不用每次点。</li>
+    </ol>
+    <div class="shot">［截图位 1］App Store 上的 Sidebrain 页（获取按钮）</div>
+    <div class="shot">［截图位 2］设置 → 应用 → Safari → 扩展 → Sidebrain 打开</div>
+    <div class="shot">［截图位 3］Safari 里 aA → Sidebrain → 侧边栏滑出</div>
+    <p class="tip">装完长什么样：任何网页右边都能叫出侧栏，选中一段文字可以直接「存进笔记」。</p>
+  </div>
+
+  <h2><span class="n">2</span>Mac 上装（5 步）</h2>
+  <div class="card">
+    <ol>
+      <li>Mac App Store 搜 <b>Sidebrain</b> → <b>获取</b>。</li>
+      <li>打开一次 Sidebrain App，让它把扩展注册进系统。</li>
+      <li><b>Safari</b> → 菜单栏 <span class="path">Safari</span> → <span class="path">设置</span> → <span class="path">扩展</span> → 左边点 <b>Sidebrain</b> → 勾上，右边权限选 <b>允许</b>。</li>
+      <li>工具栏上出现 Sidebrain 图标 → <b>点它</b>，侧栏从右边滑出（也可以按 <b>⌘⇧K</b>）。</li>
+      <li><b>输邮箱</b> → 用起来。Mac 和 iPhone 用同一个邮箱 = 同一个账号，笔记是同一份。</li>
+    </ol>
+    <div class="shot">［截图位 4］Mac 工具栏上的 Sidebrain 图标 + ⌘⇧K</div>
+    <div class="shot">［截图位 5］侧栏里问一句话，底下显示「哪个模型答的 / 用了多久」</div>
+  </div>
+
+  <h2><span class="n">3</span>装完了怎么用（三件事就够）</h2>
+  <div class="card">
+    <table>
+      <tr><th>想干的事</th><th>怎么做</th></tr>
+      <tr><td>问这一页在讲什么</td><td>点侧栏，直接打「这页在说什么」，它会带着当前网页内容回答</td></tr>
+      <tr><td>把一段话存进笔记</td><td>在网页上选中文字 → 浮出「✦ 存进笔记」→ 点一下。照片、文件直接拖/粘进对话框也会存</td></tr>
+      <tr><td>翻以前的资料</td><td>侧栏里的 🗒 笔记，每天还会自动给你生成一份「今日备忘录」</td></tr>
+    </table>
+    <p class="tip">回答底下那一行（例如「Gemini · 1.2s」）会告诉你这次是谁答的、花了多久 —— 觉得答得不好，点 👎，下次同样的活它会换一条路。</p>
+  </div>
+
+  <h2><span class="n">4</span>三个最常被问的问题</h2>
+  <div class="card">
+    <h3>「侧边栏没出来 / 找不到 Sidebrain 图标」</h3>
+    <ol>
+      <li>确认第 3 步的扩展开关是<b>打开</b>的（iOS：设置 → 应用 → Safari → 扩展；Mac：Safari 设置 → 扩展）。</li>
+      <li>iOS 上点 <b>aA</b> 才会出现扩展列表；Mac 上看工具栏有没有图标，没有就在「显示 → 自定工具栏」里拖出来。</li>
+      <li>还不行：<b>重启一次 Safari</b>（iOS 双击 Home 条上划关掉 Safari 再打开）。扩展刚装完，Safari 偶尔要吃一次重启。</li>
+    </ol>
+    <h3>「要不要自己填 API key？」</h3>
+    <p>不用。默认走我们的服务器，你只管问。想用自己的 key 也行，设置里有开关（不填就是默认）。</p>
+    <h3>「我的浏览记录/笔记会被看到吗？」</h3>
+    <p>笔记是<b>你自己的 Markdown 文件</b>，能一键导出成 zip。发给模型的只有你问的那一句 + 你当前页面的内容，用来回答问题，不留存、不训练。</p>
+  </div>
+
+  <h2><span class="n">5</span>不想用了 / 换设备</h2>
+  <div class="card">
+    <ul>
+      <li><b>只关掉侧栏</b>：Safari 里把扩展开关关掉，网页立刻回到原样。</li>
+      <li><b>彻底卸载</b>：删掉 Sidebrain App（iOS 长按图标删；Mac 从「应用程序」拖到废纸篓），扩展跟着走。</li>
+      <li><b>换手机</b>：新手机装一次，用<b>同一个邮箱</b>登录，笔记全在。</li>
+      <li><b>退订</b>：设置里点取消，到期不再扣费；试用期内取消不收钱。</li>
+    </ul>
+  </div>
+
+  <p class="foot">Sidebrain for Safari · 有问题直接回邮件，真人回</p>
+</div>
+</body>
+</html>
