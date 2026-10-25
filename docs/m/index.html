@@ -502,8 +502,12 @@
   mic.onclick = () => {
     if (!SR) { toast(T.voiceUnsupported, 2600); return; }
     if (recOn) { try { rec.stop(); } catch (_) {} return; }
+    // 免手开着但耳朵停了（比如 iOS 断掉一次）→ 手动续上
+    if (typeof HANDS !== 'undefined' && HANDS) { unlockTTS(); startListen(); return; }
+    if (recOn) { try { rec.stop(); } catch (_) {} return; }
     rec = new SR();
-    rec.lang = (navigator.language || 'zh-CN');
+    // 教练模式下必须用英文识别，否则说的是英文、识别的是中文
+    rec.lang = (typeof coachOn === 'function' && coachOn()) ? 'en-US' : (navigator.language || 'zh-CN');
     rec.interimResults = true;
     rec.continuous = false;
     const ta = $('#ta'); const before = ta.value;
@@ -630,7 +634,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-0055';
+  const BUILD = '20261025-0100';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
