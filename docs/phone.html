@@ -95,6 +95,24 @@ code{background:#0a0c10;border:1px solid var(--line);border-radius:6px;padding:1
     </ol>
   </div>
 
+  <h2><span class="n">C</span>最省事的一条：书签（不用装任何扩展）</h2>
+  <div class="card">
+    <p style="color:#c6ceda;font-size:15px;margin:0 0 6px">iOS 只给了「扩展」一条官方路，但还有一个没人提的老办法：<b>书签里存一段 javascript</b>。点一下就把它注入当前网页。</p>
+    <ol>
+      <li>Sidebrain 图标 → 右上 <b>⋯</b> → <b>🔖 复制小精灵书签</b>
+        <div class="see">会提示「连接码已复制」，那串 <code>javascript:…</code> 已经在剪贴板里了</div></li>
+      <li>Safari 随便开一个网页 → 点底部 <b>分享</b> → 往下划 → <b>添加书签</b></li>
+      <li>名字改成 <b>Sidebrain</b> → 位置选 <b>个人收藏</b> → <b>存储</b>
+        <div class="see">这时它还是个普通书签，地址不对，下一步改掉</div></li>
+      <li>打开书签列表（Safari 底部 <b>⋯</b> → <b>书签</b>）→ 右上 <b>编辑</b> → 点刚存的 <b>Sidebrain</b></li>
+      <li>把<b>地址那一栏整行删掉</b> → <b>粘贴</b> → 点 <b>完成</b>
+        <div class="see">地址会变成一长串 javascript: 开头的东西，这就是成功了</div></li>
+      <li>以后在<b>任何网页</b>：点底部 <b>⋯</b> → 书签 → 点 <b>Sidebrain</b> → 右下角冒出药丸
+        <div class="see">点药丸就能问这一页；选中文字会冒「✦ 存进笔记」</div></li>
+    </ol>
+    <p class="tip">书签里那段代码每次都会自己去找服务器当前地址，所以隧道换域名也不会失效。</p>
+  </div>
+
   <h2><span class="n">C</span>装完怎么用</h2>
   <div class="card">
     <ul>
