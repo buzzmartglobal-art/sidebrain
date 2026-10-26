@@ -795,7 +795,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261026-0030';
+  const BUILD = '20261026-0105';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1353,33 +1353,63 @@
     };
     $('#planRetest').onclick = () => { PLAN = { needTest: true }; paintTest(); };
   }
-  function paintTest() {
-    const qs = PLAN && PLAN.questions ? PLAN.questions : null;
-    if (!qs) {
-      api('/plan/test', null, { method: 'GET' }).then(r => { PLAN = Object.assign({}, PLAN, { questions: r.questions }); PLAN.needTest = true; paintTest(); });
-      planBody.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'Loading the test…' : '出题中…') + '</div>';
-      return;
-    }
-    PLAN_ANS = {};
-    planBody.innerHTML = '<div class="hint" style="padding:0 2px 12px">' + (EN ? '10 quick questions. About two minutes. Then you get your level and your plan.' : '10 道快题，两分钟。测完直接给你定档和计划。') + '</div>' +
-      qs.map((q, i) => '<div style="padding:10px 0;border-top:1px solid #1d222b"><div style="font-size:15px;padding-bottom:8px">' + (i + 1) + '. ' + esc(q.q) + '</div>' +
-        q.o.map((o, j) => '<button class="cchip qopt" data-i="' + i + '" data-j="' + j + '">' + esc(o) + '</button>').join(' ') + '</div>').join('') +
-      '<button class="big" id="testGo" style="width:100%;margin:14px 0 6px">' + (EN ? 'See my level' : '看我的档') + '</button>';
-    planBody.querySelectorAll('.qopt').forEach(b => {
-      b.onclick = () => {
-        const i = b.dataset.i;
-        planBody.querySelectorAll('.qopt[data-i="' + i + '"]').forEach(x => x.classList.remove('act'));
-        b.classList.add('act'); PLAN_ANS[i] = Number(b.dataset.j);
+  let PLAN_QI = 0;
+  function planLevelRow() {
+    return '<div style="padding:16px 0 6px;border-top:1px solid #1d222b">' +
+      '<div class="hint" style="padding-bottom:8px">' + (EN ? 'Or skip the test and pick your level yourself:' : '不想做题？直接选你的水平：') + '</div>' +
+      ['A2', 'B1', 'B2', 'C1'].map(l => '<button class="cchip lvset" data-l="' + l + '">' + l + '</button>').join(' ') + '</div>';
+  }
+  function bindLevelRow() {
+    planBody.querySelectorAll('.lvset').forEach(b => {
+      b.onclick = async () => {
+        try {
+          await api('/plan', { setLevel: b.dataset.l }, { method: 'POST' });
+          const r = await api('/plan', null, { method: 'GET' });
+          PLAN = r; PLAN_TODAY = null; paintPlan();
+          toast(EN ? 'Level set: ' + b.dataset.l : '定档：' + b.dataset.l, 2000);
+        } catch (e) { toast(String(e.message || e), 3000); }
       };
     });
-    $('#testGo').onclick = async () => {
-      const answers = qs.map((_, i) => (PLAN_ANS[i] === undefined ? -1 : PLAN_ANS[i]));
-      try {
-        const r = await api('/plan/test', { answers }, { method: 'POST' });
-        toast((EN ? 'Level: ' : '定档：') + r.level + (EN ? ' (' + r.right + '/' + r.total + ')' : '（答对 ' + r.right + '/' + r.total + '）'), 3000);
-        const r2 = await api('/plan', null, { method: 'GET' }); PLAN = r2; paintPlan();
-      } catch (e) { toast(String(e.message || e), 2600); }
-    };
+  }
+  function paintTest(i) {
+    const qs = PLAN && PLAN.questions ? PLAN.questions : null;
+    if (!qs) {
+      planBody.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'Loading the test…' : '出题中…') + '</div>';
+      api('/plan/test', null, { method: 'GET' }).then(r => {
+        PLAN = Object.assign({}, PLAN, { questions: r.questions }); PLAN.needTest = true; paintTest(0);
+      }).catch(e => {
+        planBody.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'Could not load the test: ' : '题目没取到：') + esc(String(e.message || e)) + '</div>' + planLevelRow();
+        bindLevelRow();
+      });
+      return;
+    }
+    PLAN_QI = Math.max(0, Math.min(i || 0, qs.length));
+    PLAN_ANS = PLAN_ANS || {};
+    if (PLAN_QI >= qs.length) return submitTest(qs);
+    const q = qs[PLAN_QI];
+    planBody.innerHTML =
+      '<div class="hint" style="padding:2px 2px 10px">' + (PLAN_QI + 1) + ' / ' + qs.length + ' · ' + (EN ? 'tap the answer' : '点一下答案，自动下一题') + '</div>' +
+      '<div class="rdb" style="margin-bottom:16px"><i style="width:' + Math.round(PLAN_QI / qs.length * 100) + '%"></i></div>' +
+      '<div style="font-size:18px;line-height:1.5;padding:6px 2px 14px">' + esc(q.q) + '</div>' +
+      q.o.map((o, j) => '<button class="qbig" data-j="' + j + '" style="display:block;width:100%;text-align:left;padding:15px 16px;margin-bottom:10px;border-radius:12px;border:1px solid #2a2f3a;background:#12151c;color:#e6e9ef;font-size:16px">' + esc(o) + '</button>').join('') +
+      planLevelRow();
+    planBody.querySelectorAll('.qbig').forEach(b => {
+      b.onclick = () => { PLAN_ANS[PLAN_QI] = Number(b.dataset.j); b.style.borderColor = '#5b8cff'; setTimeout(() => paintTest(PLAN_QI + 1), 140); };
+    });
+    bindLevelRow();
+  }
+  async function submitTest(qs) {
+    planBody.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'Scoring…' : '正在定档…') + '</div>';
+    const answers = qs.map((_, i) => (PLAN_ANS[i] === undefined ? -1 : PLAN_ANS[i]));
+    try {
+      const r = await api('/plan/test', { answers }, { method: 'POST' });
+      const r2 = await api('/plan', null, { method: 'GET' });
+      PLAN = r2; paintPlan();
+      toast((EN ? 'Level: ' : '定档：') + r.level + (EN ? ' (' + r.right + '/' + r.total + ')' : '（答对 ' + r.right + '/' + r.total + '）'), 3200);
+    } catch (e) {
+      planBody.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'Scoring failed: ' : '定档失败：') + esc(String(e.message || e)) + '</div>' + planLevelRow();
+      bindLevelRow();
+    }
   }
   async function startPlanLesson() {
     if (!PLAN || !PLAN.day) { openPlan(); return; }
@@ -1591,12 +1621,137 @@
       else if (st === 'listen') { try { hRec && hRec.stop(); } catch (_) {} }
     };
   })();
+  /* ---------- 免手对话 v2：常开麦克风 + 自己切句 + 服务端转写 ----------
+     iOS 的 webkitSpeechRecognition 每开一次都要一次手势，所以手机上一轮之后就得再点。
+     换一条路：一次手势拿到麦克风，之后 AnalyserNode 盯音量，静下来就把这段录音送去转写，
+     整条链路不再需要手势。 */
+  const ASR2 = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder) &&
+    (/iPhone|iPad|iPod/.test(navigator.userAgent) || /[?&]asr=1/.test(location.search));
+  let MIC_STREAM = null, MIC_CTX = null, MIC_AN = null, MIC_BUF = null, MIC_LOOP = null;
+  let VAD_ON = false, REC = null, REC_CHUNKS = [], SIL_MS = 0, HEARD_MS = 0, NOISE = 0.014, REC_T0 = 0, VAD_BUSY = false;
+  function micLevel() {
+    if (!MIC_AN) return 0;
+    MIC_AN.getByteTimeDomainData(MIC_BUF);
+    let sum = 0;
+    for (let i = 0; i < MIC_BUF.length; i++) { const v = (MIC_BUF[i] - 128) / 128; sum += v * v; }
+    return Math.sqrt(sum / MIC_BUF.length);
+  }
+  async function openMic() {
+    if (MIC_STREAM) return true;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    MIC_STREAM = stream;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    MIC_CTX = new AC();
+    const src = MIC_CTX.createMediaStreamSource(stream);
+    MIC_AN = MIC_CTX.createAnalyser(); MIC_AN.fftSize = 1024;
+    src.connect(MIC_AN);
+    MIC_BUF = new Uint8Array(MIC_AN.fftSize);
+    try { if (MIC_CTX.state === 'suspended') await MIC_CTX.resume(); } catch (_) {}
+    dbg('mic_open', { tracks: stream.getAudioTracks().length });
+    return true;
+  }
+  function closeMic() {
+    VAD_ON = false;
+    if (MIC_LOOP) { clearTimeout(MIC_LOOP); MIC_LOOP = null; }
+    try { if (REC && REC.state !== 'inactive') REC.stop(); } catch (_) {}
+    REC = null; REC_CHUNKS = [];
+    try { MIC_STREAM && MIC_STREAM.getTracks().forEach(t => t.stop()); } catch (_) {}
+    try { MIC_CTX && MIC_CTX.close(); } catch (_) {}
+    MIC_STREAM = null; MIC_AN = null; MIC_CTX = null;
+  }
+  function micListen() {
+    if (!MIC_STREAM) {
+      // 还没拿到麦克风：借这次（通常还带着手势）开一次，开成就一直开着
+      openMic().then(() => micListen()).catch(e => dbg('mic_err', { msg: String(e.message || e).slice(0, 120) }));
+      return;
+    }
+    VAD_ON = true;
+    if (!MIC_LOOP) micStep();
+    if (!busy && !REC) setState('listen');
+  }
+  function micStep() {
+    if (!VAD_ON) { MIC_LOOP = null; return; }
+    const lvl = micLevel();
+    // 它在说话、或者在等回复的时候，麦克风只听不记
+    if (state() !== 'speak') {
+      const loud = lvl > Math.max(0.02, NOISE * 2.0);
+      if (REC) {
+        if (loud) SIL_MS = 0; else SIL_MS += 110;
+        if (SIL_MS > 900 || Date.now() - REC_T0 > 15000) stopSeg();
+      } else if (loud) {
+        HEARD_MS += 110;
+        if (HEARD_MS > 130) startSeg();      // 连着响 130ms 才算开口，躲开咳嗽声
+      } else {
+        HEARD_MS = 0;
+        NOISE = NOISE * 0.97 + lvl * 0.03;   // 跟住环境噪音
+      }
+    }
+    MIC_LOOP = setTimeout(micStep, 110);
+  }
+  function startSeg() {
+    if (REC || !MIC_STREAM) return;
+    HEARD_MS = 0; SIL_MS = 0; REC_CHUNKS = [];
+    const types = ['audio/mp4', 'audio/mp4;codecs=mp4a.40.2', 'audio/webm;codecs=opus', 'audio/webm'];
+    let mime = '';
+    for (const t of types) { try { if (MediaRecorder.isTypeSupported(t)) { mime = t; break; } } catch (_) {} }
+    try { REC = new MediaRecorder(MIC_STREAM, mime ? { mimeType: mime, audioBitsPerSecond: 48000 } : undefined); }
+    catch (_) { try { REC = new MediaRecorder(MIC_STREAM); } catch (e) { return; } }
+    REC.ondataavailable = e => { if (e.data && e.data.size) REC_CHUNKS.push(e.data); };
+    REC.onstop = onSeg;
+    REC.start(250);
+    REC_T0 = Date.now();
+    setState('listen');
+    dbg('seg_start', {});
+  }
+  function stopSeg() {
+    if (!REC) return;
+    try { REC.stop(); } catch (_) {}
+    REC = null;
+    setState('think');
+  }
+  function blobB64(blob) {
+    return new Promise((res, rej) => {
+      const f = new FileReader();
+      f.onload = () => res(String(f.result).split(',')[1] || '');
+      f.onerror = rej;
+      f.readAsDataURL(blob);
+    });
+  }
+  async function onSeg() {
+    const blob = new Blob(REC_CHUNKS, { type: (REC && REC.mimeType) || 'audio/mp4' });
+    REC_CHUNKS = [];
+    if (blob.size < 1500) { if (VAD_ON) setState('listen'); return; }
+    try {
+      const b64 = await blobB64(blob);
+      const r = await api('/asr', { audio: b64, mime: blob.type || 'audio/mp4', lang: 'en' }, { method: 'POST' });
+      const txt = String(r.text || '').trim();
+      dbg('asr', { prov: r.provider, ms: r.ms, chars: txt.length, bytes: blob.size });
+      if (!txt) { if (VAD_ON) setState('listen'); return; }
+      ta.value = txt; autoGrow();
+      send();
+    } catch (e) {
+      dbg('asr_err', { msg: String(e.message || e).slice(0, 120) });
+      if (VAD_ON) setState('listen');
+    }
+  }
+  function state() { return setState._last || 'idle'; }
+
   function toggleHands() {
     HANDS = !HANDS;
     if (HANDS && !coachOn()) setMode('coach');   // 免手就是来练口语的，顺手把教练打开
     try { store.hands = HANDS; } catch (_) {}
     paintHands();
-    if (!HANDS) { try { hRec && hRec.stop(); } catch (_) {} if (hTimer) clearTimeout(hTimer); if (hRetry) { clearTimeout(hRetry); hRetry = null; } try { TTS && TTS.cancel(); } catch (_) {} mic.classList.remove('rec'); return; }
+    if (!HANDS) { if (ASR2) closeMic(); try { hRec && hRec.stop(); } catch (_) {} if (hTimer) clearTimeout(hTimer); if (hRetry) { clearTimeout(hRetry); hRetry = null; } try { TTS && TTS.cancel(); } catch (_) {} mic.classList.remove('rec'); return; }
+    if (ASR2) {
+      toast(EN ? 'Mic stays open — just talk, no tapping' : '麦克风一直开着，直接说，一次都不用点', 2600);
+      openMic().then(() => { if (!CHAT.length) { ta.value = 'Hi, let me practise.'; send(); } else micListen(); })
+        .catch(e => {
+          HANDS = false; try { store.hands = false; } catch (_) {} paintHands();
+          toast((EN ? 'Mic blocked: ' : '麦克风没开成：') + (EN ? 'allow microphone in the address bar' : '地址栏里允许麦克风'), 4000);
+          dbg('mic_err', { msg: String(e.message || e).slice(0, 120) });
+        });
+      return;
+    }
     if (!SR) { toast(T.voiceUnsupported, 2600); HANDS = false; paintHands(); return; }
     toast(EN ? 'Talk normally — I answer out loud, then listen again' : '直接说英文，我念出来，然后接着听', 2200);
     if (!CHAT.length) { ta.value = EN ? "Hi, let's practise." : "Hi, let's practise."; send(); return; }
@@ -1619,6 +1774,7 @@
     if (st !== setState._last) { setState._last = st; dbg('state', { st, hands: HANDS, csub: CSUB, lvl: LEVEL }); }
   }
   function startListen(tryAgain) {
+    if (ASR2) { micListen(); return; }
     if (!HANDS) return;
     // 退避期内的任何调用都不算数：看门狗、上一轮的收尾回调都想开麦，一律等退避结束
     if (Date.now() < hBackoffUntil) { retryListen(hBackoffUntil - Date.now() + 30); return; }
@@ -1783,6 +1939,7 @@
   // 进教练模式：一次手势里把语音链路全叫醒（iOS 只认手势）
   function enterCoach() {
     unlockTTS();
+    if (ASR2) { if (!MIC_STREAM) openMic().catch(() => {}); else micListen(); }
     if (!CHAT.some(x => x.role === 'assistant') && !busy) {
       ta.value = 'Start the session.';
       SILENT_NEXT = true;
