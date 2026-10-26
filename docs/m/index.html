@@ -772,7 +772,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-2305';
+  const BUILD = '20261025-2315';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1142,7 +1142,7 @@
       return URL.createObjectURL(blob);
     } finally { clearTimeout(kill); }
   }
-  let LAST_PLAY_OK = false;
+  let LAST_PLAY_OK = false, LAST_PLAY_ERR = '';
   function playUrl(url, rate, seq) {
     LAST_PLAY_OK = false;
     return new Promise(res => {
@@ -1163,13 +1163,13 @@
         AUD.src = url;
         AUD.playbackRate = rate || 1;
         AUD.play().then(() => {
-          LAST_PLAY_OK = true;
+          LAST_PLAY_OK = true; LAST_PLAY_ERR = '';
           // 时间轴 1.5 秒都没动 → 当它没在播，别把对话循环卡死
           alive = setTimeout(() => { try { if (AUD.currentTime <= 0.05) fin(); } catch (_) { fin(); } }, 1500);
           const dur = AUD.duration && isFinite(AUD.duration) ? AUD.duration : 6;
           guard = setTimeout(fin, Math.max(2000, dur * 1000 / (rate || 1) + 1800));
-        }).catch(fin);
-      } catch (_) { fin(); }
+        }).catch((e) => { LAST_PLAY_ERR = String((e && e.name) || e); dbg('play_err', { name: LAST_PLAY_ERR, msg: String((e && e.message) || '').slice(0, 80) }); fin(); });
+      } catch (e) { LAST_PLAY_ERR = 'throw ' + String(e && e.name || e); fin(); }
     });
   }
   // 念整段：第一块先合成先出声，第二块在念第一块的时候才去取（不并发轰炸 TTS）
@@ -1339,7 +1339,7 @@
         else {
           const t0 = Date.now();
           await playUrl(url, BOOK.rate, seq);
-          dbg('book_part', { i, ms: Date.now() - t0, chars: parts[i].length, ok: LAST_PLAY_OK });
+          dbg('book_part', { i, ms: Date.now() - t0, chars: parts[i].length, ok: LAST_PLAY_OK, err: LAST_PLAY_ERR });
           try { URL.revokeObjectURL(url); } catch (_) {}
           if (!LAST_PLAY_OK) {
             // 浏览器还没拿到「可以出声」的许可：停在这里，别把后面几十页白白跳过去
