@@ -731,7 +731,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-1100';
+  const BUILD = '20261025-1126';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1196,6 +1196,7 @@
   function paintHands() { if (coachOn()) paintCoachBar(); }
   setInterval(() => {
     if (!HANDS || busy || recOn) return;
+    if (hRetry) return;   // 正在退避重试，看门狗别抢着开麦（否则退避形同虚设）
     if (document.visibilityState !== 'visible') return;
     const st = (document.getElementById('hstate') || {}).className;
     if (st === 'think' || st === 'speak') return;   // 想的时候、念的时候都不许开麦：念的时候开麦等于让它听自己
@@ -1223,7 +1224,7 @@
     if (!CHAT.length) { ta.value = EN ? "Hi, let's practise." : "Hi, let's practise."; send(); return; }
     startListen();
   }
-  let hRec = null, hTimer = null, hFinal = '', hFails = 0, hRetry = null;
+  let hRec = null, hTimer = null, hFinal = '', hFails = 0, hRetry = null, hErrored = false, hBackoffUntil = 0;
   // 麦克风重试：同一时间只有一个定时器，越错越慢，连错三次就停手（不能让它在坏设备上空转）
   function retryListen(ms) {
     if (!HANDS) return;
@@ -1241,11 +1242,14 @@
   }
   function startListen(tryAgain) {
     if (!HANDS) return;
+    // 退避期内的任何调用都不算数：看门狗、上一轮的收尾回调都想开麦，一律等退避结束
+    if (Date.now() < hBackoffUntil) { retryListen(hBackoffUntil - Date.now() + 30); return; }
     // 忙 / 上一只耳朵还没关 → 等一下再来，不能默默返回（默默返回就是「说了一句它没反应」）
     if (busy || recOn) { if (!tryAgain) setTimeout(() => startListen(true), 320); return; }
     if (!SR) { setState('idle'); return; }
     setState('listen');
     hFinal = '';
+    hErrored = false;
     hRec = new SR();
     hRec.lang = 'en-US';
     hRec.interimResults = true;
@@ -1263,6 +1267,8 @@
     hRec.onerror = e => {
       recOn = false; mic.classList.remove('rec');
       const err = e && e.error;
+      hErrored = true;   // 这一轮它自己报错了，退避由这里安排，别让 onend 又插一脚
+      hBackoffUntil = Date.now() + Math.min(4000, 500 * Math.pow(2, hFails));
       dbg('sr_err', { err: String(err), msg: String((e && e.message) || '').slice(0, 120) });
       if (!HANDS) return;
       if (err === 'not-allowed' || err === 'service-not-allowed') {
@@ -1283,8 +1289,8 @@
       dbg('sr_end', { len: hFinal.trim().length });
       if (!HANDS) return;
       const said = hFinal.trim();
-      if (said.length > 1) { hFails = 0; ta.value = said; autoGrow(); if (READ_TARGET && CSUB === 'read') scoreRead(said); send(); }
-      else { setState('idle'); retryListen(400); }
+      if (said.length > 1) { hFails = 0; hBackoffUntil = 0; ta.value = said; autoGrow(); if (READ_TARGET && CSUB === 'read') scoreRead(said); send(); }
+      else { setState('idle'); if (!hErrored) retryListen(400); }
     };
     try { hRec.start(); } catch (_) { recOn = false; }
   }
