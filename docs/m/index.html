@@ -1256,7 +1256,8 @@
   let ALL_BOOKS = [];
   function paintBooks(q) {
     const key = String(q || '').trim().toLowerCase();
-    const list = (key ? ALL_BOOKS.filter(b => b.title.toLowerCase().includes(key)) : ALL_BOOKS).slice(0, 300);
+    const pool = (key ? ALL_BOOKS.filter(b => b.title.toLowerCase().includes(key)) : ALL_BOOKS);
+    const list = pool.slice().sort((a, b) => (b.pct > 0 ? 1 : 0) - (a.pct > 0 ? 1 : 0) || a.title.localeCompare(b.title)).slice(0, 300);
     if (!list.length) { bookListEl.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'No book here. Put a .epub or .txt in Documents/Books.' : '没找到书。把 .epub 或 .txt 放进「文稿/Books」就行。') + '</div>'; return; }
     bookListEl.innerHTML = list.map(b =>
       '<div class="bkrow" data-id="' + b.id + '"><div class="t"><b>' + esc(b.title) + '</b><span>' +
@@ -1329,6 +1330,8 @@
       }, 4000);
     }
   }
+  const BOOKQ = new URLSearchParams(location.search).get('book');
+  if (BOOKQ) setTimeout(() => { startBook(BOOKQ); }, 900);
   $('#rdPlay').onclick = () => { if (BOOK.playing) pauseBook(); else resumeBook(); };
   $('#rdSlow').onclick = () => { BOOK.rate = BOOK.rate >= 1.2 ? 0.9 : Math.round((BOOK.rate + 0.15) * 100) / 100; paintReader(); resumeBook(); };
   $('#rdX').onclick = () => closeBook();
