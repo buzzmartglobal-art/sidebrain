@@ -772,7 +772,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-2245';
+  const BUILD = '20261025-2253';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1131,7 +1131,9 @@
       return URL.createObjectURL(blob);
     } finally { clearTimeout(kill); }
   }
+  let LAST_PLAY_OK = false;
   function playUrl(url, rate, seq) {
+    LAST_PLAY_OK = false;
     return new Promise(res => {
       let done = false, guard = 0, alive = 0, watch = 0;
       const fin = () => {
@@ -1149,6 +1151,7 @@
         AUD.src = url;
         AUD.playbackRate = rate || 1;
         AUD.play().then(() => {
+          LAST_PLAY_OK = true;
           // 时间轴 1.5 秒都没动 → 当它没在播，别把对话循环卡死
           alive = setTimeout(() => { try { if (AUD.currentTime <= 0.05) fin(); } catch (_) { fin(); } }, 1500);
           const dur = AUD.duration && isFinite(AUD.duration) ? AUD.duration : 6;
@@ -1321,7 +1324,19 @@
         if (i === 1 && parts.length > 2) pref = ttsFetch(parts[2]).catch(() => null);
         if (i === 0 && parts.length > 1) { /* 第二块已在预取 */ }
         if (!url) { sayBrowser(parts[i], BOOK.rate, null); }
-        else { const t0 = Date.now(); await playUrl(url, BOOK.rate, seq); dbg('book_part', { i, ms: Date.now() - t0, chars: parts[i].length }); try { URL.revokeObjectURL(url); } catch (_) {} }
+        else {
+          const t0 = Date.now();
+          await playUrl(url, BOOK.rate, seq);
+          dbg('book_part', { i, ms: Date.now() - t0, chars: parts[i].length, ok: LAST_PLAY_OK });
+          try { URL.revokeObjectURL(url); } catch (_) {}
+          if (!LAST_PLAY_OK) {
+            // 浏览器还没拿到「可以出声」的许可：停在这里，别把后面几十页白白跳过去
+            BOOK.playing = false; BOOK.pos = Math.max(0, BOOK.pos - (chunk.text ? chunk.text.length : 0));
+            paintReader();
+            toast(EN ? 'Tap ▶ to start reading aloud' : '点一下 ▶ 开始念', 3000);
+            return;
+          }
+        }
       }
       if (chunk.done) { BOOK.playing = false; paintReader(); toast(EN ? 'That is the end of the book' : '这本书念完了', 3000); return; }
       // 顺手把「故事进展」拉回来，问问题时模型手上有上下文
