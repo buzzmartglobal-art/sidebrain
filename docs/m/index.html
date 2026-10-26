@@ -772,7 +772,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-2315';
+  const BUILD = '20261025-2320';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1338,7 +1338,10 @@
         if (!url) { sayBrowser(parts[i], BOOK.rate, null); }
         else {
           const t0 = Date.now();
-          await playUrl(url, BOOK.rate, seq);
+          // 播放器用的号是全局「开口代际」，不是读书自己的轮次号 ——
+          // 传错号它一进去就以为自己是旧的一代，立刻静音返回
+          const pseq = ++SPEAK_SEQ;
+          await playUrl(url, BOOK.rate, pseq);
           dbg('book_part', { i, ms: Date.now() - t0, chars: parts[i].length, ok: LAST_PLAY_OK, err: LAST_PLAY_ERR });
           try { URL.revokeObjectURL(url); } catch (_) {}
           if (!LAST_PLAY_OK) {
