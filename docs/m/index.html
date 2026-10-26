@@ -772,7 +772,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-2253';
+  const BUILD = '20261025-2305';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1095,6 +1095,17 @@
     try { AUD.pause(); AUD.removeAttribute('src'); AUD.load(); } catch (_) {}
     try { TTS && TTS.cancel(); } catch (_) {}
   }
+  let AUD_PRIMED = false;
+  // iOS 只给「手指头按下的那一瞬间」出声的许可。点播放时先同步放一段静音，
+  // 这只 Audio 就永久解锁了 —— 不这么做，后面等接口回来的 play() 一定被拒。
+  function primeAudio() {
+    try {
+      AUD.muted = true;
+      AUD.src = SILENT_WAV;
+      const pr = AUD.play();
+      if (pr && pr.then) pr.then(() => { AUD_PRIMED = true; try { AUD.pause(); } catch (_) {} AUD.muted = false; }).catch(() => { AUD.muted = false; });
+    } catch (_) { try { AUD.muted = false; } catch (_) {} }
+  }
   function unlockAudio() {
     if (audReady) return;
     audReady = true;
@@ -1148,6 +1159,7 @@
         AUD.onerror = fin;
         AUD.ontimeupdate = () => { if (AUD.currentTime > 0.05) clearTimeout(alive); };
         watch = setInterval(() => { if (seq && seq !== SPEAK_SEQ) { try { AUD.pause(); } catch (_) {} fin(); } }, 150);
+        AUD.muted = false;
         AUD.src = url;
         AUD.playbackRate = rate || 1;
         AUD.play().then(() => {
@@ -1266,7 +1278,7 @@
       '<div class="bkrow" data-id="' + b.id + '"><div class="t"><b>' + esc(b.title) + '</b><span>' +
       (b.kind || '').toUpperCase() + (b.pct ? ' · ' + (EN ? 'read ' : '已读 ') + b.pct + '%' : '') +
       '</span></div><div class="k">' + (b.pct ? (EN ? 'resume' : '接着读') : (EN ? 'read' : '朗读')) + ' ›</div></div>').join('');
-    bookListEl.querySelectorAll('.bkrow').forEach(el => { el.onclick = () => { closeSheet(bookSheet); startBook(el.dataset.id); }; });
+    bookListEl.querySelectorAll('.bkrow').forEach(el => { el.onclick = () => { primeAudio(); closeSheet(bookSheet); startBook(el.dataset.id); }; });
   }
   function paintReader() {
     if (!bookActive()) { readerEl.classList.remove('on'); return; }
@@ -1347,7 +1359,7 @@
   }
   const BOOKQ = new URLSearchParams(location.search).get('book');
   if (BOOKQ) setTimeout(() => { startBook(BOOKQ); }, 900);
-  $('#rdPlay').onclick = () => { if (BOOK.playing) pauseBook(); else resumeBook(); };
+  $('#rdPlay').onclick = () => { primeAudio(); if (BOOK.playing) pauseBook(); else resumeBook(); };
   $('#rdSlow').onclick = () => { BOOK.rate = BOOK.rate >= 1.2 ? 0.9 : Math.round((BOOK.rate + 0.15) * 100) / 100; paintReader(); resumeBook(); };
   $('#rdX').onclick = () => closeBook();
   $('#bookBack').onclick = () => closeSheet(bookSheet);
@@ -1857,7 +1869,7 @@
       closeSheet(menuSheet);
       toast(coachOn() ? (EN ? '🗣 English coach on' : '🗣 英文教练已开启') : (EN ? 'Back to normal chat' : '回到普通对话'), 1500);
     };
-    $('#mBook').onclick = () => { closeSheet(menuSheet); if (bookActive()) { resumeBook(); } else { openBooks(); } };
+    $('#mBook').onclick = () => { primeAudio(); closeSheet(menuSheet); if (bookActive()) { resumeBook(); } else { openBooks(); } };
     $('#mNotes').onclick = () => { closeSheet(menuSheet); openSheet(sheet); noteList(''); };
     $('#mShareAddr').onclick = async () => {
       const addr = (await ensureBase()) + '/share?token=' + encodeURIComponent(store.k);
