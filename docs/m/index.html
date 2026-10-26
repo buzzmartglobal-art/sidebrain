@@ -399,6 +399,7 @@
       pill: mid(document.getElementById('modepill')), composer: mid(document.getElementById('ta')),
       send: mid(document.getElementById('send')), state: mid(document.getElementById('hstate')),
       coachbar: mid(document.getElementById('coachbar')), chips, quick,
+      rdPlay: mid(document.getElementById('rdPlay')), rdBar: mid(document.getElementById('reader')), rdOn: (document.getElementById('reader') || {}).className,
     });
   }
 
@@ -794,7 +795,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261026-0010';
+  const BUILD = '20261026-0030';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
