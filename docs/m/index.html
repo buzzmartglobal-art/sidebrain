@@ -121,6 +121,21 @@
   .hint{text-align:center;font-size:11px;color:#5f6875;padding:6px 0 0}
 
   /* 面板（笔记/设置）底部抽屉 */
+  #reader{position:fixed;left:10px;right:10px;bottom:calc(var(--sb) + 78px);z-index:39;display:none;background:#171b23;border:1px solid #2a3040;border-radius:14px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  #reader.on{display:block}
+  #reader .rdt{font-size:12.5px;color:#cfd6e4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:7px}
+  #reader .rdb{height:3px;background:#262c38;border-radius:2px;overflow:hidden}
+  #reader .rdb i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#5b8cff,#a06bff);transition:width .3s}
+  #reader .rdc{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:#8b93a1}
+  #reader .rdc #rdPct{margin-right:auto}
+  #reader .rdb2{background:#222836;color:#dbe2ee;border:0;border-radius:9px;padding:5px 11px;font-size:13px}
+  #reader .rdb2:active{background:#2c3444}
+  .bkrow{display:flex;align-items:center;gap:10px;padding:11px 12px;border-bottom:1px solid #1b1f28}
+  .bkrow:active{background:#171b23}
+  .bkrow .t{flex:1;min-width:0}
+  .bkrow .t b{display:block;font-size:14px;font-weight:500;color:#e6e9ef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bkrow .t span{font-size:12px;color:#7d8697}
+  .bkrow .k{color:#6aa0ff;font-size:13px}
   .sheet{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;background:var(--bg);
     transform:translateY(100%);transition:transform .24s cubic-bezier(.32,.72,0,1);visibility:hidden}
   .sheet.on{transform:translateY(0);visibility:visible}
@@ -245,6 +260,21 @@
   </header>
   <div class="body" id="menuBody"></div>
 </div>
+
+<!-- 书单 -->
+<div class="sheet" id="bookSheet">
+  <header>
+    <button class="hbtn" id="bookBack">←</button>
+    <div class="brand"><b id="bookHd">读书</b></div>
+  </header>
+  <div class="body">
+    <div style="padding:0 0 8px"><input id="bookQ" class="inp" placeholder="搜书名" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a2f3a;background:#12151c;color:#e6e9ef;font-size:14px"></div>
+    <div id="bookList"></div>
+  </div>
+</div>
+
+<!-- 朗读条 -->
+<div id="reader"><div class="rdt" id="rdTitle">…</div><div class="rdb"><i id="rdBar"></i></div><div class="rdc"><span id="rdPct">0%</span><button id="rdPlay" class="rdb2">⏸</button><button id="rdSlow" class="rdb2">1×</button><button id="rdX" class="rdb2">✕</button></div></div>
 
 <!-- 登录 -->
 <div id="gate" class="hide">
@@ -596,14 +626,25 @@
     feed.scrollTop = feed.scrollHeight;
 
     const payload = {
-      messages: CHAT.filter(m => m.role === 'user' || m.role === 'assistant').slice(-12).map(m => ({ role: m.role, content: m.text })),
+      messages: CHAT.filter(m => m.role === 'user' || m.role === 'assistant').slice(-24).map(m => ({ role: m.role, content: m.text })),
       image: att.image ? { dataUrl: att.image } : null,
       files: att.files,
       url: '',
       title: document.title,
     };
+    if (bookActive() && BOOK.total) {
+      const pct = Math.round((BOOK.pos / BOOK.total) * 100);
+      payload.system = [
+        'You are also reading a book to me out loud: "' + BOOK.title + '" (about ' + pct + '% in).',
+        BOOK.sum ? 'Story so far: ' + BOOK.sum : '',
+        BOOK.last ? 'The passage I am hearing right now:\n' + BOOK.last.slice(0, 900) : '',
+        'When I ask about the book, answer from that text and keep every name and event consistent with it. When I ask what happened, summarise what I have actually heard, not the whole novel.',
+        'I do the reading by tapping the player, so never paste long passages back to me - at most quote a short line.',
+        'While we are on the book you may use up to 90 words.',
+      ].filter(Boolean).join('\n');
+    }
     if (coachOn()) {
-      payload.system = coachSys() + '\n' + lvlLine();
+      payload.system = (payload.system ? payload.system + '\n' : '') + coachSys() + '\n' + lvlLine();
       // 口语对话要的是「快」：直接告诉服务端走简单的快通道，不走分类器、不排深度模型
       payload.kind = 'simple';
       payload.level = 1;
@@ -731,7 +772,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-1126';
+  const BUILD = '20261025-2245';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -755,7 +796,8 @@
       zh: '闲聊', en: 'Just chat',
       sys: [
         'You are my friendly English speaking partner. Free chat is allowed - any topic I bring up, you follow.',
-        'Keep it spoken: 1-3 short sentences per turn, natural everyday English, and always end with something that makes me want to answer back.',
+        'Keep it spoken: usually 1-3 sentences per turn, natural everyday English, and end with something that makes me want to answer back.',
+        'If I ask for a story or say "go on", then tell it properly - up to 8 sentences in one turn - and when I say "go on" continue from exactly where you stopped, same characters, same names, no recap.',
         'Only correct me when my English would actually confuse a native speaker: then put ONE line "Better: <natural version>" plus a 6-word Chinese note, and carry on with the conversation.',
         'Never lecture, never list grammar rules, never ask me to repeat drills. If I switch to Chinese, answer in English and gently pull me back.',
         'Stay at my level: short sentences, common words, no idioms I would not know.',
@@ -1168,8 +1210,10 @@
       return true;
     }).join(' ');
     const s = plainSay(kept).replace(/\s+/g, ' ').trim();
-    if (s.length <= 170) return s;
-    const cut = s.slice(0, 170);
+    // 念多长：聊天一句话就够（170）；读书时念整段（900）；讲故事允许一整段（420）
+    const cap = (typeof bookActive === 'function' && bookActive()) ? 900 : 200;
+    if (s.length <= cap) return s;
+    const cut = s.slice(0, cap);
     const m = cut.match(/^[\s\S]*[.!?…]/);
     return (m ? m[0] : cut).trim();
   }
@@ -1193,6 +1237,104 @@
       sayBrowser(txt, null, done);
     }).catch(() => sayBrowser(txt, null, done));
   }
+  /* ---------- 读书：把电脑里的书一段一段念完，并且记得故事讲到哪 ---------- */
+  const BOOK = { id: '', title: '', pos: 0, total: 0, sum: '', last: '', playing: false, seq: 0, rate: 1 };
+  const bookSheet = $('#bookSheet'), bookListEl = $('#bookList'), readerEl = $('#reader');
+  function bookActive() { return !!BOOK.id; }
+  async function openBooks() {
+    openSheet(bookSheet);
+    bookListEl.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'Looking for books on your Mac…' : '正在找你电脑里的书…') + '</div>';
+    try {
+      const r = await api('/books', null, { method: 'GET' });
+      ALL_BOOKS = (r.books || []);
+      paintBooks('');
+      $('#bookQ').oninput = (e) => paintBooks(e.target.value);
+    } catch (e) {
+      bookListEl.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'Could not read the shelf: ' : '读书架失败：') + esc(String(e.message || e)) + '</div>';
+    }
+  }
+  let ALL_BOOKS = [];
+  function paintBooks(q) {
+    const key = String(q || '').trim().toLowerCase();
+    const list = (key ? ALL_BOOKS.filter(b => b.title.toLowerCase().includes(key)) : ALL_BOOKS).slice(0, 300);
+    if (!list.length) { bookListEl.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'No book here. Put a .epub or .txt in Documents/Books.' : '没找到书。把 .epub 或 .txt 放进「文稿/Books」就行。') + '</div>'; return; }
+    bookListEl.innerHTML = list.map(b =>
+      '<div class="bkrow" data-id="' + b.id + '"><div class="t"><b>' + esc(b.title) + '</b><span>' +
+      (b.kind || '').toUpperCase() + (b.pct ? ' · ' + (EN ? 'read ' : '已读 ') + b.pct + '%' : '') +
+      '</span></div><div class="k">' + (b.pct ? (EN ? 'resume' : '接着读') : (EN ? 'read' : '朗读')) + ' ›</div></div>').join('');
+    bookListEl.querySelectorAll('.bkrow').forEach(el => { el.onclick = () => { closeSheet(bookSheet); startBook(el.dataset.id); }; });
+  }
+  function paintReader() {
+    if (!bookActive()) { readerEl.classList.remove('on'); return; }
+    readerEl.classList.add('on');
+    $('#rdTitle').textContent = BOOK.title;
+    const pct = BOOK.total ? Math.min(100, Math.round((BOOK.pos / BOOK.total) * 1000) / 10) : 0;
+    $('#rdBar').style.width = pct + '%';
+    $('#rdPct').textContent = pct + '% · ' + (BOOK.playing ? (EN ? 'reading' : '在念') : (EN ? 'paused' : '暂停'));
+    $('#rdPlay').textContent = BOOK.playing ? '⏸' : '▶';
+    $('#rdSlow').textContent = BOOK.rate + '×';
+  }
+  async function startBook(id) {
+    try {
+      const r = await api('/books/open', { id });
+      BOOK.id = r.id; BOOK.title = r.title; BOOK.total = r.chars; BOOK.pos = r.pos || 0; BOOK.sum = r.sum || ''; BOOK.last = '';
+      BOOK.playing = true; BOOK.seq++;
+      if (HANDS) { HANDS = false; paintHands(); }
+      paintReader();
+      toast(EN ? 'Reading aloud — ask me anything about it' : '开始念了，随时可以问我书里的事', 2200);
+      bookLoop(BOOK.seq);
+    } catch (e) { toast(EN ? 'Could not open the book' : '这本书打不开', 2400); }
+  }
+  function stopBookSound() { try { AUD.pause(); } catch (_) {} try { SPEAK_SEQ++; } catch (_) {} }
+  function pauseBook() { BOOK.playing = false; BOOK.seq++; stopBookSound(); paintReader(); }
+  function resumeBook() { if (!bookActive()) return; BOOK.playing = true; BOOK.seq++; paintReader(); bookLoop(BOOK.seq); }
+  function closeBook() { BOOK.playing = false; BOOK.seq++; stopBookSound(); BOOK.id = ''; BOOK.title = ''; readerEl.classList.remove('on'); }
+  // 一节正文切成几块：每块 ≤420 字（服务端 TTS 的甜点区），一块在念的时候下一块已经在合成
+  function splitRead(text, max) {
+    const out = []; let t = String(text || '').replace(/\s+/g, ' ').trim();
+    while (t.length > max) {
+      let cut = -1;
+      for (const p of ['. ', '! ', '? ', '." ', '.” ', '; ']) { const i = t.lastIndexOf(p, max); if (i > cut) cut = i + p.length; }
+      if (cut < max * 0.5) cut = max;
+      out.push(t.slice(0, cut).trim()); t = t.slice(cut).trim();
+    }
+    if (t) out.push(t);
+    return out;
+  }
+  async function bookLoop(seq) {
+    while (BOOK.playing && BOOK.seq === seq) {
+      let chunk = null;
+      try {
+        chunk = await api('/books/next', { id: BOOK.id, pos: BOOK.pos });
+      } catch (e) { toast(EN ? 'Lost the book — tap ▶ to retry' : '书掉了，点 ▶ 再试', 2400); BOOK.playing = false; paintReader(); return; }
+      if (BOOK.seq !== seq) return;
+      BOOK.pos = chunk.next; BOOK.total = chunk.total; BOOK.last = chunk.text;
+      paintReader();
+      dbg('book_chunk', { pos: chunk.next, total: chunk.total, chars: chunk.text.length });
+      const parts = splitRead(chunk.text, 420);
+      let pref = parts.length > 1 ? ttsFetch(parts[1]).catch(() => null) : null;
+      for (let i = 0; i < parts.length; i++) {
+        if (!BOOK.playing || BOOK.seq !== seq) return;
+        let url = null;
+        try { url = await (i === 0 ? ttsFetch(parts[0]) : (i === 1 ? pref : ttsFetch(parts[i]))); } catch (_) {}
+        if (i === 1 && parts.length > 2) pref = ttsFetch(parts[2]).catch(() => null);
+        if (i === 0 && parts.length > 1) { /* 第二块已在预取 */ }
+        if (!url) { sayBrowser(parts[i], BOOK.rate, null); }
+        else { const t0 = Date.now(); await playUrl(url, BOOK.rate, seq); dbg('book_part', { i, ms: Date.now() - t0, chars: parts[i].length }); try { URL.revokeObjectURL(url); } catch (_) {} }
+      }
+      if (chunk.done) { BOOK.playing = false; paintReader(); toast(EN ? 'That is the end of the book' : '这本书念完了', 3000); return; }
+      // 顺手把「故事进展」拉回来，问问题时模型手上有上下文
+      setTimeout(async () => {
+        try { const r = await api('/books/open', { id: BOOK.id }); if (r && r.sum) BOOK.sum = r.sum; } catch (_) {}
+      }, 4000);
+    }
+  }
+  $('#rdPlay').onclick = () => { if (BOOK.playing) pauseBook(); else resumeBook(); };
+  $('#rdSlow').onclick = () => { BOOK.rate = BOOK.rate >= 1.2 ? 0.9 : Math.round((BOOK.rate + 0.15) * 100) / 100; paintReader(); resumeBook(); };
+  $('#rdX').onclick = () => closeBook();
+  $('#bookBack').onclick = () => closeSheet(bookSheet);
+  window.__SB_BOOK = () => ({ id: BOOK.id, title: BOOK.title, pos: BOOK.pos, total: BOOK.total, playing: BOOK.playing, sum: BOOK.sum.slice(0, 80) });
+
   function paintHands() { if (coachOn()) paintCoachBar(); }
   setInterval(() => {
     if (!HANDS || busy || recOn) return;
@@ -1637,6 +1779,9 @@
       '<div class="rowitem" id="mSpriteCode"><div class="t"><b>🔖 ' + T.spriteCode + '</b><span>' + T.spriteCodeTip + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mShareAddr"><div class="t"><b>🔗 ' + T.shareAddr + '</b><span>' + T.shareTip + '</span></div><div class="k">' + T.copyAddr + ' ›</div></div>' +
       '<div class="sec">模式</div>' +
+      '<div class="rowitem" id="mBook"><div class="t"><b>📖 ' + (EN ? 'Read a book to me' : '朗读一本书') + '</b><span>' +
+        (bookActive() ? esc(BOOK.title) : (EN ? 'From your Mac: epub, txt. It keeps the story straight and answers questions about it.' : '念你电脑里的 epub / txt，一段一段接着念，还能回答书里的事')) +
+        '</span></div><div class="k">' + (bookActive() ? (EN ? 'reading' : '在念') : '›') + '</div></div>' +
       '<div class="rowitem" id="mCoach"><div class="t"><b>🗣 ' + (EN ? 'English coach' : '英文教练') + '</b><span>' +
         (EN ? (coachOn() ? 'ON · talk in English, I fix your sentence first' : 'Practice English: I correct your sentence, then keep the chat going') :
               (coachOn() ? '已开启 · 用英文说，我先把你的句子改地道' : '练英文：先把你的句子改地道，再接着聊')) +
@@ -1694,6 +1839,7 @@
       closeSheet(menuSheet);
       toast(coachOn() ? (EN ? '🗣 English coach on' : '🗣 英文教练已开启') : (EN ? 'Back to normal chat' : '回到普通对话'), 1500);
     };
+    $('#mBook').onclick = () => { closeSheet(menuSheet); if (bookActive()) { resumeBook(); } else { openBooks(); } };
     $('#mNotes').onclick = () => { closeSheet(menuSheet); openSheet(sheet); noteList(''); };
     $('#mShareAddr').onclick = async () => {
       const addr = (await ensureBase()) + '/share?token=' + encodeURIComponent(store.k);
