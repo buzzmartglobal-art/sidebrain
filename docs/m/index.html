@@ -253,6 +253,14 @@
 </div>
 
 <!-- 设置 -->
+<div class="sheet" id="planSheet">
+  <header>
+    <button class="hbtn" id="planBack">←</button>
+    <div class="brand"><b id="planHd">训练计划</b></div>
+  </header>
+  <div class="body" id="planBody"></div>
+</div>
+
 <div class="sheet" id="menuSheet">
   <header>
     <button class="hbtn" id="menuBack">←</button>
@@ -268,6 +276,10 @@
     <div class="brand"><b id="bookHd">读书</b></div>
   </header>
   <div class="body">
+    <div id="bkTabs" style="display:flex;gap:8px;padding:0 0 10px">
+      <button class="cchip act" id="bkTabRead" data-tab="read">📖 朗读</button>
+      <button class="cchip" id="bkTabText" data-tab="text">📚 英文教材</button>
+    </div>
     <div style="padding:0 0 8px"><input id="bookQ" class="inp" placeholder="搜书名" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a2f3a;background:#12151c;color:#e6e9ef;font-size:14px"></div>
     <div id="bookList"></div>
   </div>
@@ -643,6 +655,16 @@
         'While we are on the book you may use up to 90 words.',
       ].filter(Boolean).join('\n');
     }
+    if (CSUB === 'plan' && PLAN_TODAY) {
+      payload.system = (payload.system ? payload.system + '\n' : '') + [
+        'TODAY\'S LESSON (level ' + (PLAN && PLAN.level ? PLAN.level : 'B1') + '):',
+        'Unit: ' + PLAN_TODAY.unitTitle + ' — focus: ' + PLAN_TODAY.focus,
+        'Target chunks:',
+        ...PLAN_TODAY.chunks.map(c => '- ' + c.en + '  (' + c.zh + ')  e.g. ' + c.ex),
+        PLAN_TODAY.review && PLAN_TODAY.review.length ? 'Review chunks from last unit: ' + PLAN_TODAY.review.map(c => c.en).join(' / ') : '',
+        'Task: ' + PLAN_TODAY.task,
+      ].filter(Boolean).join('\n');
+    }
     if (coachOn()) {
       payload.system = (payload.system ? payload.system + '\n' : '') + coachSys() + '\n' + lvlLine();
       // 口语对话要的是「快」：直接告诉服务端走简单的快通道，不走分类器、不排深度模型
@@ -772,7 +794,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261025-2330';
+  const BUILD = '20261026-0010';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -861,6 +883,34 @@
       ].join('\n'),
       chips: { zh: ['给我一段短文', '给我一个听力练习', '下一段'], en: ['Give me a passage', 'Listening practice', 'Next one'] },
     },
+    plan: {
+      zh: '今日课', en: 'Today lesson',
+      sys: [
+        'You are my English tutor running TODAY\'S LESSON from my own syllabus. The lesson (unit, focus, target chunks, task) is given in the context above.',
+        'Run it in this order, one step per turn, never skip and never dump the whole lesson at once:',
+        '1) One line: what we do today and why it matters for me.',
+        '2) Teach the first chunk: the chunk, its meaning in Chinese (max 8 字), then one example sentence. Then ask me to make my own sentence with it.',
+        '3) Correct my sentence with a single "Better: <natural version>" line plus a 6-word Chinese note, then move to the next chunk.',
+        '4) After the chunks, give the task in the lesson and let me do it. Then give a 3-line wrap: what I used well, the one thing to fix, and what we do next time.',
+        'If I say the next chunk or skip, move on immediately. If I write in Chinese, answer in English and pull me back.',
+        'Everything you write is read aloud, so keep each turn under 50 words except the final wrap. No grammar lectures, no lists of rules.',
+      ].join('\n'),
+      chips: { zh: ['下一个语块', '我先造句', '给我任务', '今天收尾'], en: ['Next chunk', 'Let me try a sentence', 'Give me the task', 'Wrap up today'] },
+    },
+    book: {
+      zh: '跟着书练', en: 'Book lesson',
+      sys: [
+        'We are using a real novel from my own computer as my English material. The passage I am hearing right now is in the context above - use that exact text, never invent sentences, never recite other parts of the novel.',
+        'Run each round in this order and keep the whole reply short enough to be spoken:',
+        '1) ONE comprehension question about the passage (who / why / what does this line mean).',
+        '2) After my answer, correct my English with a single "Better: <natural version>" line plus a 6-word Chinese note.',
+        '3) Teach ONE word or phrase from the passage that a learner at my level would miss: the word, its meaning in this sentence (5 words max), then ask me to use it in my own sentence.',
+        '4) Every third round: ask me to retell what happened in the passage in 2-3 sentences of my own.',
+        'When I say "next passage" just say "I am reading the next part now" in one line - I control the player, you do not.',
+        'Everything you write is read aloud to me, so never paste the passage back. At most 45 words per turn plus the "Better:" line.',
+      ].join('\n'),
+      chips: { zh: ['这段讲了什么', '挑个词教我', '让我复述这段', '换个问题'], en: ['What is this passage about', 'Teach me one word', 'Let me retell it', 'Ask me something else'] },
+    },
     scenario: {
       zh: '场景角色扮演', en: 'Roleplay',
       sys: [
@@ -935,7 +985,10 @@
         paintCoachBar(); paintQuick();
         // 照 ELSA / Speak 的做法：进「跟读」和「角色扮演」，教练先开口，用户不用想第一句
         if (!changed || !coachOn() || busy) return;
-        if (k === 'read' && !READ_TARGET) { ta.value = 'Give me a sentence to read aloud.'; send(); }
+        if (k === 'read' && !READ_TARGET) {
+          if (bookActive() && readFromBook()) { /* 直接用这一段里的句子，零等待 */ }
+          else { ta.value = 'Give me a sentence to read aloud.'; send(); }
+        }
         else if (k === 'free') { ta.value = 'Say hi in one short line, then ask what I feel like talking about.'; send(); }
         else if (k === 'scenario' && !CHAT.some(m => m.role === 'assistant')) { ta.value = 'Start the roleplay. Pick a scene that fits my level and begin.'; send(); }
       };
@@ -1254,23 +1307,118 @@
   }
   /* ---------- 读书：把电脑里的书一段一段念完，并且记得故事讲到哪 ---------- */
   const BOOK = { id: '', title: '', pos: 0, total: 0, sum: '', last: '', playing: false, seq: 0, rate: 1, head: '', headPart: 0, headChunk: null };
+  let TEXTBOOK = false, READ_LAST = '';
+  /* ---------- 训练计划：自测定档 -> 今日课 ---------- */
+  let PLAN = null, PLAN_TODAY = null, PLAN_ANS = {};
+  const planSheet = $('#planSheet'), planBody = $('#planBody');
+  async function openPlan() {
+    openSheet(planSheet);
+    $('#planHd').textContent = EN ? 'Training plan' : '训练计划';
+    planBody.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'Loading…' : '读取中…') + '</div>';
+    try {
+      const r = await api('/plan', null, { method: 'GET' });
+      PLAN = r;
+      paintPlan();
+    } catch (e) { planBody.innerHTML = '<div class="hint" style="padding:20px 4px">' + esc(String(e.message || e)) + '</div>'; }
+  }
+  function paintPlan() {
+    if (!PLAN) return;
+    if (PLAN.needTest) return paintTest();
+    const d = PLAN.day, p = PLAN.progress || {};
+    const pct = PLAN.total ? Math.round((p.done || 0) / PLAN.total * 100) : 0;
+    planBody.innerHTML =
+      '<div class="rd" style="padding:2px 0 10px"><b style="font-size:17px">' + esc(PLAN.level + ' · ' + (PLAN.info ? PLAN.info.zh : '')) + '</b>' +
+      '<div class="hint" style="padding:6px 0 0">' + esc(PLAN.info ? PLAN.info.goal : '') + '</div></div>' +
+      '<div class="rdb" style="margin-bottom:10px"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="hint" style="padding-bottom:12px">' + (EN ? 'Day ' : '第 ') + d.n + (EN ? ' of ' : ' / ') + PLAN.total + ' · ' + (EN ? p.done + ' done' : '已完成 ' + p.done + ' 课') + '</div>' +
+      '<div class="card2" style="background:#12151c;border-radius:14px;padding:14px;margin-bottom:12px">' +
+        '<div style="font-size:16px;font-weight:700;margin-bottom:4px">' + esc(d.unitTitle) + '</div>' +
+        '<div class="hint" style="padding-bottom:8px">' + esc(d.focus) + '</div>' +
+        d.chunks.map(c => '<div style="padding:5px 0;border-top:1px solid #1d222b"><b>' + esc(c.en) + '</b><span class="hint" style="display:block;padding-top:2px">' + esc(c.zh) + ' · ' + esc(c.ex) + '</span></div>').join('') +
+        '<div class="hint" style="padding-top:10px">' + (EN ? 'Task: ' : '任务：') + esc(d.task) + '</div>' +
+      '</div>' +
+      '<button class="big" id="planGo" style="width:100%;margin-bottom:10px">' + (EN ? '▶ Start today\u2019s lesson' : '▶ 开始今天的课') + '</button>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button class="cchip" id="planDone" style="flex:1">' + (EN ? '✓ Mark done' : '✓ 今天练完了') + '</button>' +
+        '<button class="cchip" id="planRetest" style="flex:1">' + (EN ? 'Retake the test' : '重新测水平') + '</button>' +
+      '</div>' +
+      '<div class="hint" style="padding:14px 2px 4px">' + (EN ? 'Next up' : '接下来') + '：' + (PLAN.days || []).filter(x => !x.done).slice(0, 4).map(x => 'D' + x.n + ' ' + x.unitTitle).join(' · ') + '</div>';
+    $('#planGo').onclick = () => { closeSheet(planSheet); startPlanLesson(); };
+    $('#planDone').onclick = async () => {
+      try {
+        const r = await api('/plan', { markDone: true, note: (TURNS ? 'turns: ' + TURNS : '') }, { method: 'POST' });
+        PLAN = r; toast(EN ? 'Saved to your notes' : '写进笔记了', 2000); paintPlan();
+      } catch (e) { toast(String(e.message || e), 2600); }
+    };
+    $('#planRetest').onclick = () => { PLAN = { needTest: true }; paintTest(); };
+  }
+  function paintTest() {
+    const qs = PLAN && PLAN.questions ? PLAN.questions : null;
+    if (!qs) {
+      api('/plan/test', null, { method: 'GET' }).then(r => { PLAN = Object.assign({}, PLAN, { questions: r.questions }); PLAN.needTest = true; paintTest(); });
+      planBody.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'Loading the test…' : '出题中…') + '</div>';
+      return;
+    }
+    PLAN_ANS = {};
+    planBody.innerHTML = '<div class="hint" style="padding:0 2px 12px">' + (EN ? '10 quick questions. About two minutes. Then you get your level and your plan.' : '10 道快题，两分钟。测完直接给你定档和计划。') + '</div>' +
+      qs.map((q, i) => '<div style="padding:10px 0;border-top:1px solid #1d222b"><div style="font-size:15px;padding-bottom:8px">' + (i + 1) + '. ' + esc(q.q) + '</div>' +
+        q.o.map((o, j) => '<button class="cchip qopt" data-i="' + i + '" data-j="' + j + '">' + esc(o) + '</button>').join(' ') + '</div>').join('') +
+      '<button class="big" id="testGo" style="width:100%;margin:14px 0 6px">' + (EN ? 'See my level' : '看我的档') + '</button>';
+    planBody.querySelectorAll('.qopt').forEach(b => {
+      b.onclick = () => {
+        const i = b.dataset.i;
+        planBody.querySelectorAll('.qopt[data-i="' + i + '"]').forEach(x => x.classList.remove('act'));
+        b.classList.add('act'); PLAN_ANS[i] = Number(b.dataset.j);
+      };
+    });
+    $('#testGo').onclick = async () => {
+      const answers = qs.map((_, i) => (PLAN_ANS[i] === undefined ? -1 : PLAN_ANS[i]));
+      try {
+        const r = await api('/plan/test', { answers }, { method: 'POST' });
+        toast((EN ? 'Level: ' : '定档：') + r.level + (EN ? ' (' + r.right + '/' + r.total + ')' : '（答对 ' + r.right + '/' + r.total + '）'), 3000);
+        const r2 = await api('/plan', null, { method: 'GET' }); PLAN = r2; paintPlan();
+      } catch (e) { toast(String(e.message || e), 2600); }
+    };
+  }
+  async function startPlanLesson() {
+    if (!PLAN || !PLAN.day) { openPlan(); return; }
+    PLAN_TODAY = PLAN.day;
+    CSUB = 'plan'; try { store.csub = CSUB; } catch (_) {}
+    MODE = 'coach'; try { store.mode = MODE; } catch (_) {}
+    paintMode();
+    HANDS = !!SR; try { store.hands = HANDS; } catch (_) {} paintHands();
+    if (busy) return;
+    ta.value = EN ? 'Start today\u2019s lesson.' : '开始今天的课。';
+    SILENT_NEXT = true;
+    setTimeout(() => send(), 80);
+  }
+  async function loadTexts() {
+    if (ALL_TEXTS.length) return;
+    try { const r = await api('/textbooks', null, { method: 'GET' }); ALL_TEXTS = (r.books || []); } catch (_) { ALL_TEXTS = []; }
+  }
   const bookSheet = $('#bookSheet'), bookListEl = $('#bookList'), readerEl = $('#reader');
   function bookActive() { return !!BOOK.id; }
-  async function openBooks() {
-    openSheet(bookSheet);
-    bookListEl.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'Looking for books on your Mac…' : '正在找你电脑里的书…') + '</div>';
+  async function openBooks(tab) {
+    BK_TAB = tab === 'text' ? 'text' : 'read';
+    openSheet(bookSheet); paintTabs();
+    bookListEl.innerHTML = '<div class="hint" style="padding:20px 4px">' + (BK_TAB === 'text' ? (EN ? 'Collecting the English books on your Mac…' : '正在整理你机器上的英文书…') : (EN ? 'Looking for books on your Mac…' : '正在找你电脑里的书…')) + '</div>';
+    const tabRead = $('#bkTabRead'), tabText = $('#bkTabText');
+    if (tabRead) tabRead.onclick = () => { BK_TAB = 'read'; paintTabs(); paintBooks($('#bookQ').value || ''); };
+    if (tabText) tabText.onclick = () => { BK_TAB = 'text'; paintTabs(); loadTexts().then(() => paintBooks($('#bookQ').value || '')); };
+    $('#bookQ').oninput = (e) => paintBooks(e.target.value);
     try {
       const r = await api('/books', null, { method: 'GET' });
       ALL_BOOKS = (r.books || []);
+      if (BK_TAB === 'text') await loadTexts();
       paintBooks('');
-      $('#bookQ').oninput = (e) => paintBooks(e.target.value);
     } catch (e) {
       bookListEl.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'Could not read the shelf: ' : '读书架失败：') + esc(String(e.message || e)) + '</div>';
     }
   }
-  let ALL_BOOKS = [];
+  let ALL_BOOKS = [], ALL_TEXTS = [], BK_TAB = 'read';
   function paintBooks(q) {
     const key = String(q || '').trim().toLowerCase();
+    if (BK_TAB === 'text') return paintTexts(key);
     const pool = (key ? ALL_BOOKS.filter(b => b.title.toLowerCase().includes(key)) : ALL_BOOKS);
     const list = pool.slice().sort((a, b) => (b.pct > 0 ? 1 : 0) - (a.pct > 0 ? 1 : 0) || a.title.localeCompare(b.title)).slice(0, 300);
     if (!list.length) { bookListEl.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'No book here. Put a .epub or .txt in Documents/Books.' : '没找到书。把 .epub 或 .txt 放进「文稿/Books」就行。') + '</div>'; return; }
@@ -1279,6 +1427,37 @@
       (b.kind || '').toUpperCase() + (b.pct ? ' · ' + (EN ? 'read ' : '已读 ') + b.pct + '%' : '') +
       '</span></div><div class="k">' + (b.pct ? (EN ? 'resume' : '接着读') : (EN ? 'read' : '朗读')) + ' ›</div></div>').join('');
     bookListEl.querySelectorAll('.bkrow').forEach(el => { el.onclick = () => { primeAudio(); closeSheet(bookSheet); startBook(el.dataset.id); }; });
+  }
+  // 英文教材：只收读得通的英文书，每本标好难度档和词数
+  function paintTexts(key) {
+    const pool = key ? ALL_TEXTS.filter(b => b.title.toLowerCase().includes(key)) : ALL_TEXTS;
+    const list = pool.slice(0, 300);
+    if (!list.length) { bookListEl.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'No English book found on this Mac.' : '这台机器上没找到英文书。') + '</div>'; return; }
+    const LV = { B1: '🟢', B2: '🔵', C1: '🟡', C2: '🔴' };
+    bookListEl.innerHTML = list.map(b =>
+      '<div class="bkrow" data-id="' + b.id + '"><div class="t"><b>' + esc(b.title) + '</b><span>' +
+      (LV[b.level] || '') + ' ' + b.level + ' · ' + Math.round(b.words / 1000) + 'k ' + (EN ? 'words' : '词') +
+      '</span></div><div class="k">' + (EN ? 'study' : '开练') + ' ›</div></div>').join('');
+    bookListEl.querySelectorAll('.bkrow').forEach(el => { el.onclick = () => { unlockTTS(); primeAudio(); closeSheet(bookSheet); startTextbook(el.dataset.id); }; });
+  }
+  function paintTabs() {
+    const a = $('#bkTabRead'), b = $('#bkTabText');
+    if (!a || !b) return;
+    a.classList.toggle('act', BK_TAB === 'read'); b.classList.toggle('act', BK_TAB === 'text');
+    a.textContent = EN ? '📖 Reading' : '📖 朗读';
+    b.textContent = EN ? '📚 Textbook' : '📚 英文教材';
+    $('#bookHd').textContent = BK_TAB === 'text' ? (EN ? 'English textbook' : '英文教材') : (EN ? 'Reading' : '读书');
+    $('#bookQ').placeholder = BK_TAB === 'text' ? (EN ? 'Search a title' : '搜书名') : (EN ? 'Search a title' : '搜书名');
+  }
+  async function startTextbook(id) {
+    TEXTBOOK = true; try { store.text = true; } catch (_) {}
+    await startBook(id);
+    CSUB = 'book'; try { store.csub = CSUB; } catch (_) {}
+    SILENT_NEXT = false;
+    if (MODE !== 'coach') { MODE = 'coach'; paintMode(); }
+    else paintMode();
+    // 书已经在念了，让教练就着这一段开口
+    setTimeout(() => { if (!busy) { ta.value = 'Start the lesson from this passage.'; SILENT_NEXT = true; send(); } }, 900);
   }
   function paintReader() {
     if (!bookActive()) { readerEl.classList.remove('on'); return; }
@@ -1293,7 +1472,7 @@
   async function startBook(id) {
     try {
       const r = await api('/books/open', { id });
-      BOOK.id = r.id; BOOK.title = r.title; BOOK.total = r.chars; BOOK.pos = r.pos || 0; BOOK.sum = r.sum || ''; BOOK.last = '';
+      BOOK.id = r.id; BOOK.title = r.title; BOOK.total = r.chars; BOOK.pos = r.pos || 0; BOOK.sum = r.sum || ''; BOOK.last = r.passage || '';
       BOOK.playing = true; BOOK.seq++;
       if (HANDS) { HANDS = false; paintHands(); }
       paintReader();
@@ -1304,7 +1483,7 @@
   function stopBookSound() { try { AUD.pause(); } catch (_) {} try { SPEAK_SEQ++; } catch (_) {} }
   function pauseBook() { BOOK.playing = false; BOOK.seq++; stopBookSound(); paintReader(); }
   function resumeBook() { if (!bookActive()) return; BOOK.playing = true; BOOK.seq++; paintReader(); bookLoop(BOOK.seq); }
-  function closeBook() { BOOK.playing = false; BOOK.seq++; stopBookSound(); BOOK.id = ''; BOOK.title = ''; readerEl.classList.remove('on'); }
+  function closeBook() { BOOK.playing = false; BOOK.seq++; stopBookSound(); BOOK.id = ''; BOOK.title = ''; TEXTBOOK = false; try { store.text = false; } catch (_) {} readerEl.classList.remove('on'); }
   // 一节正文切成几块：每块 ≤420 字（服务端 TTS 的甜点区），一块在念的时候下一块已经在合成
   function splitRead(text, max) {
     const out = []; let t = String(text || '').replace(/\s+/g, ' ').trim();
@@ -1324,7 +1503,7 @@
         chunk = await api('/books/next', { id: BOOK.id, pos: BOOK.pos });
       } catch (e) { toast(EN ? 'Lost the book — tap ▶ to retry' : '书掉了，点 ▶ 再试', 2400); BOOK.playing = false; paintReader(); return; }
       if (BOOK.seq !== seq) return;
-      BOOK.pos = chunk.next; BOOK.total = chunk.total; BOOK.last = chunk.text;
+      BOOK.pos = chunk.next; BOOK.total = chunk.total; BOOK.last = chunk.text; BK_SENT_I = 0;
       paintReader();
       dbg('book_chunk', { pos: chunk.next, total: chunk.total, chars: chunk.text.length });
       const parts = splitRead(chunk.text, 420);
@@ -1388,6 +1567,7 @@
   $('#rdSlow').onclick = () => { BOOK.rate = BOOK.rate >= 1.2 ? 0.9 : Math.round((BOOK.rate + 0.15) * 100) / 100; paintReader(); resumeBook(); };
   $('#rdX').onclick = () => closeBook();
   $('#bookBack').onclick = () => closeSheet(bookSheet);
+  $('#planBack').onclick = () => closeSheet(planSheet);
   window.__SB_BOOK = () => ({ id: BOOK.id, title: BOOK.title, pos: BOOK.pos, total: BOOK.total, playing: BOOK.playing, sum: BOOK.sum.slice(0, 80) });
 
   function paintHands() { if (coachOn()) paintCoachBar(); }
@@ -1493,10 +1673,38 @@
   }
 
   // 跟读打分：把「听到的」和「该念的」按词对齐，漏了哪几个词直接告诉他
+  // 从正在念的这段里挑适合跟读的句子：9–24 个词、是完整句子，按顺序轮
+  function pickSentences(text, max) {
+    const out = [];
+    for (const c of String(text || '').replace(/\s+/g, ' ').split(/(?<=[.!?])\s+/)) {
+      const t = c.trim();
+      const w = (t.match(/\s+/g) || []).length + 1;
+      if (w >= 9 && w <= 24 && /^[A-Z"\u201c]/.test(t)) out.push(t.slice(0, 220));
+      if (out.length >= (max || 6)) break;
+    }
+    return out;
+  }
+  let BK_SENT_I = 0;
+  function readFromBook() {
+    const list = pickSentences(BOOK.last || '', 6);
+    if (!list.length) return false;
+    const sent = list[BK_SENT_I % list.length];
+    BK_SENT_I++;
+    READ_TARGET = sent;
+    const { wrap } = rowEl('assistant', sent);
+    feed.appendChild(wrap);
+    feed.scrollTop = feed.scrollHeight;
+    CHAT.push({ role: 'assistant', text: sent, channel: 'book' });
+    try { speakOut(sent); } catch (_) { setTimeout(startListen, 300); }
+    return true;
+  }
   function scoreRead(said) {
     const r = readScore(said, READ_TARGET);
     const miss = r.miss.length ? (EN ? ' · missed: ' + r.miss.join(', ') : ' · 漏了 ' + r.miss.join('、')) : '';
     toast((EN ? 'Read-aloud ' : '跟读 ') + r.pct + '%' + miss, 4200);
+    READ_TARGET = '';
+    // 书还在念、还在跟读：过一秒换下一句，不用问模型
+    if (bookActive() && CSUB === 'read') setTimeout(() => { if (!busy && bookActive() && CSUB === 'read') readFromBook(); }, 900);
     const badge = document.createElement('div');
     badge.className = 'meta';
     badge.textContent = (EN ? 'Read-aloud ' : '跟读 ') + r.pct + '%' + miss;
@@ -1547,7 +1755,7 @@
       pill.classList.toggle('on', coachOn());
       // 顶栏地方窄，只放短名；长名字在下面的胶囊条里
       const SHORT = { free: ['Chat', '闲聊'], natural: ['Talk', '对话'], talk: ['Speech', '演讲'], convo: ['Convo', '情境'],
-        writing: ['Write', '写作'], reading: ['Read', '阅读'], scenario: ['Role', '角色'], read: ['Aloud', '跟读'] };
+        writing: ['Write', '写作'], reading: ['Read', '阅读'], scenario: ['Role', '角色'], read: ['Aloud', '跟读'], book: ['Book', '书课'], plan: ['Plan', '今日课'] };
       const sh = SHORT[CSUB] || SHORT.natural;
       pill.textContent = coachOn() ? '🗣 ' + (EN ? sh[0] : sh[1]) : '🗣 ' + (EN ? 'practise' : '练口语');
       pill.style.display = 'inline-flex';
@@ -1837,6 +2045,14 @@
       '<div class="rowitem" id="mBook"><div class="t"><b>📖 ' + (EN ? 'Read a book to me' : '朗读一本书') + '</b><span>' +
         (bookActive() ? esc(BOOK.title) : (EN ? 'From your Mac: epub, txt. It keeps the story straight and answers questions about it.' : '念你电脑里的 epub / txt，一段一段接着念，还能回答书里的事')) +
         '</span></div><div class="k">' + (bookActive() ? (EN ? 'reading' : '在念') : '›') + '</div></div>' +
+      '<div class="rowitem" id="mPlan"><div class="t"><b>🎯 ' + (EN ? 'Training plan' : '训练计划') + '</b><span>' +
+        (PLAN && PLAN.level ? esc(PLAN.level + ' · ' + (PLAN.day ? PLAN.day.unitTitle : '') + ' · ' + (EN ? 'day ' : '第 ') + (PLAN.day ? PLAN.day.n : 1) + (EN ? '' : ' 课'))
+          : (EN ? 'Placement test, then 12 lessons with the chunks and tasks that fit your level.' : '先测一下你的水平，再给 12 节课：语块、任务、跟我读，一课一课来')) +
+        '</span></div><div class="k">›</div></div>' +
+      '<div class="rowitem" id="mText"><div class="t"><b>📚 ' + (EN ? 'English textbook from my books' : '用我的书练英语') + '</b><span>' +
+        (TEXTBOOK ? esc(BOOK.title) + ' · ' + (EN ? 'lesson running' : '正在上课') :
+          (EN ? '224 English novels on this Mac. It picks a passage, asks about it, teaches the words you would miss.' : '你机器上 224 本英文小说，挑一段让你读、提问、讲生词，比通用课文扎实得多')) +
+        '</span></div><div class="k">' + (TEXTBOOK ? (EN ? 'open' : '打开') : '›') + '</div></div>' +
       '<div class="rowitem" id="mCoach"><div class="t"><b>🗣 ' + (EN ? 'English coach' : '英文教练') + '</b><span>' +
         (EN ? (coachOn() ? 'ON · talk in English, I fix your sentence first' : 'Practice English: I correct your sentence, then keep the chat going') :
               (coachOn() ? '已开启 · 用英文说，我先把你的句子改地道' : '练英文：先把你的句子改地道，再接着聊')) +
@@ -1894,7 +2110,9 @@
       closeSheet(menuSheet);
       toast(coachOn() ? (EN ? '🗣 English coach on' : '🗣 英文教练已开启') : (EN ? 'Back to normal chat' : '回到普通对话'), 1500);
     };
-    $('#mBook').onclick = () => { primeAudio(); closeSheet(menuSheet); if (bookActive()) { resumeBook(); } else { openBooks(); } };
+    $('#mBook').onclick = () => { primeAudio(); closeSheet(menuSheet); if (bookActive()) { resumeBook(); } else { openBooks('read'); } };
+    $('#mText').onclick = () => { unlockTTS(); primeAudio(); closeSheet(menuSheet); openBooks('text'); };
+    $('#mPlan').onclick = () => { unlockTTS(); closeSheet(menuSheet); openPlan(); };
     $('#mNotes').onclick = () => { closeSheet(menuSheet); openSheet(sheet); noteList(''); };
     $('#mShareAddr').onclick = async () => {
       const addr = (await ensureBase()) + '/share?token=' + encodeURIComponent(store.k);
