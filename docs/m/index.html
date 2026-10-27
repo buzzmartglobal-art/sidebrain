@@ -804,7 +804,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261026-2315';
+  const BUILD = '20261026-2325';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -2239,8 +2239,14 @@
       '<div class="rowitem" id="mVoiceTop"><div class="t"><b>🔊 ' + (EN ? 'Voice' : '嗓音') + '</b><span>' +
         esc(pickVoiceName()) + (EL_HAS ? ' · ElevenLabs' : '') + '</span></div><div class="k">' + (EN ? 'change' : '换') + ' ›</div></div>' +
       '<div id="voiceBox" style="display:none;padding:4px 14px 10px">' +
-        ['aoede', 'puck', 'kore', 'leda'].map(v => '<button class="cchip vsel' + (VOICE === v ? ' act' : '') + '" data-v="' + v + '">' +
-          ({ aoede: EN ? 'Aoede · warm female' : 'Aoede · 温暖女声', puck: EN ? 'Puck · lively male' : 'Puck · 活泼男声', kore: EN ? 'Kore · firm female' : 'Kore · 干练女声', leda: EN ? 'Leda · young female' : 'Leda · 年轻女声' }[v]) + '</button>').join(' ') +
+        ['callirrhoe', 'aoede', 'leda', 'vindemiatrix', 'kore', 'puck', 'charon'].map(v => '<button class="cchip vsel' + (VOICE === v ? ' act' : '') + '" data-v="' + v + '">' +
+          ({ callirrhoe: EN ? 'Callirrhoe · easy female' : 'Callirrhoe · 松弛女声',
+             aoede: EN ? 'Aoede · warm female' : 'Aoede · 温暖女声',
+             leda: EN ? 'Leda · young female' : 'Leda · 年轻女声',
+             vindemiatrix: EN ? 'Vindemiatrix · mature female' : 'Vindemiatrix · 成熟女声',
+             kore: EN ? 'Kore · firm female' : 'Kore · 干练女声',
+             puck: EN ? 'Puck · lively male' : 'Puck · 活泼男声',
+             charon: EN ? 'Charon · deep male' : 'Charon · 低沉男声' }[v]) + '</button>').join(' ') +
         '<div class="hint" style="padding:10px 0 6px">' + (EN ? 'Tap a voice to hear it.' : '点一下就能听到。') + '</div>' +
         '<div class="hint" style="padding:2px 0 8px">' + (EN ? 'Want the ElevenLabs voice? Paste your key once — every sentence after that uses it.' : '想用你自己的 ElevenLabs 声音？把 key 粘一次，之后所有句子都走它。') + '</div>' +
         '<input id="elKey" class="inp" placeholder="xi-api-key" autocomplete="off" spellcheck="false" value="' + (EL_HAS ? '•••• 已保存' : '') + '" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a2f3a;background:#12151c;color:#e6e9ef;font-size:14px">' +
