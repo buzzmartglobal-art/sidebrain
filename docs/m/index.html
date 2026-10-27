@@ -826,7 +826,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261026-2340';
+  const BUILD = '20261026-2350';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1269,12 +1269,12 @@
     if (!parts.length) return true;
     if (!SRV_VOICE_OK && Date.now() < VOICE_RETRY_AT) return false;
     const t0 = Date.now();
-    const p0 = await ttsFetch(parts[0], 'high').catch(() => null);
+    const p0 = await ttsFetch(parts[0], 'fast').catch(() => null);
     if (seq && seq !== SPEAK_SEQ) { if (p0) URL.revokeObjectURL(p0); return true; }   // 这轮已经过期了
     if (!p0) { SRV_VOICE_OK = false; VOICE_RETRY_AT = Date.now() + 600000; dbg('tts_fail', { parts: parts.length }); return false; }
     SRV_VOICE_OK = true;
     const firstMs = Date.now() - t0;
-    const restP = parts[1] ? ttsFetch(parts[1], 'high').catch(() => null) : null;
+    const restP = parts[1] ? ttsFetch(parts[1], 'fast').catch(() => null) : null;
     const played = [];
     let cur = 0, dur = 0;
     await playUrl(p0, rate, seq);
