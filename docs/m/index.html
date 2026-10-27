@@ -734,13 +734,21 @@
           setTimeout(() => { if (!done) { done = true; res({ dur: Math.round((a.duration || 0) * 10) / 10 }); } }, 4000);
         });
         rep({ step: 'audio_meta', ...meta });
-        let playErr = '';
+        // 能不能真的放出声（没有用户手势时 iOS 会拦）。play() 的 promise 有时不 settle，
+        // 所以用 race 兜一下，同时看 currentTime 有没有真的走。
+        let how = '';
         try {
-          await AUD.play();
-          await new Promise(r2 => setTimeout(r2, 500));
-          rep({ step: 'play', ok: AUD.currentTime > 0.05, t: Math.round(AUD.currentTime * 10) / 10, paused: AUD.paused });
-          try { AUD.pause(); } catch (_) {}
-        } catch (e) { playErr = String(e && e.name || e); rep({ step: 'play', ok: false, err: playErr }); }
+          AUD.muted = false;
+          const pr = AUD.play();
+          how = await Promise.race([
+            pr.then(() => 'resolved').catch(e => 'rejected:' + String((e && e.name) || e)),
+            new Promise(r2 => setTimeout(() => r2('pending'), 2500)),
+          ]);
+        } catch (e) { how = 'threw:' + String((e && e.name) || e); }
+        await new Promise(r2 => setTimeout(r2, 700));
+        rep({ step: 'play', how, ok: !AUD.paused && AUD.currentTime > 0.05,
+              t: Math.round(AUD.currentTime * 10) / 10, paused: AUD.paused });
+        try { AUD.pause(); } catch (_) {}
         try { URL.revokeObjectURL(url); } catch (_) {}
       } catch (e) { rep({ step: 'chat_fail', err: String(e && e.message || e).slice(0, 140) }); }
       // 麦克风：能不能开口
@@ -795,7 +803,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261026-0105';
+  const BUILD = '20261026-2135';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
