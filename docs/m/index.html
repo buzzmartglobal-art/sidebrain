@@ -738,6 +738,7 @@
         // 所以用 race 兜一下，同时看 currentTime 有没有真的走。
         let how = '';
         try {
+          AUD.src = url;          // 关键：刚才探的是新建的 Audio，全局播放器里其实没装东西
           AUD.muted = false;
           const pr = AUD.play();
           how = await Promise.race([
@@ -803,7 +804,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261026-2135';
+  const BUILD = '20261026-2140';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
