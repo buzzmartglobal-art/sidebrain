@@ -253,6 +253,13 @@
 </div>
 
 <!-- 设置 -->
+<div class="sheet" id="filmSheet">
+  <header>
+    <button class="hbtn" id="filmBack">←</button>
+    <div class="brand"><b id="filmHd">看片课</b></div>
+  </header>
+  <div class="body" id="filmBody"></div>
+</div>
 <div class="sheet" id="planSheet">
   <header>
     <button class="hbtn" id="planBack">←</button>
@@ -826,7 +833,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261026-2350';
+  const BUILD = '20261027-1905';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1353,6 +1360,98 @@
   /* ---------- 训练计划：自测定档 -> 今日课 ---------- */
   let PLAN = null, PLAN_TODAY = null, PLAN_ANS = {};
   const planSheet = $('#planSheet'), planBody = $('#planBody');
+  /* ---------------- 看片课：字幕 -> 按你水平的课 ---------------- */
+  let FILM = { pending: 0, units: [], title: '', lang: 'en' };
+  let FILM_UNIT = null;
+
+  async function openFilm() {
+    openSheet(filmSheet);
+    $('#filmHd').textContent = EN ? 'Watch & learn' : '看片课';
+    filmBody.innerHTML = '<div class="hint" style="padding:20px 4px">' + (EN ? 'Loading…' : '读取中…') + '</div>';
+    try {
+      FILM = await api('/film/lessons', null, { method: 'GET' });
+      paintFilm();
+    } catch (e) {
+      filmBody.innerHTML = '<div class="hint" style="padding:20px 4px">' + esc(String(e.message || e)) + '</div>';
+    }
+  }
+
+  function filmUnitHtml(u) {
+    const chunks = (u.chunks || []).map(c =>
+      '<div style="padding:7px 0;border-top:1px solid #1d222b">' +
+        '<b>' + esc(c.chunk) + '</b>' +
+        (c.zh ? '<span class="hint" style="display:block;padding-top:2px">' + esc(c.zh) + '</span>' : '') +
+        (c.line ? '<span class="hint" style="display:block;padding-top:2px;color:#8f9bb3">“' + esc(c.line) + '”</span>' : '') +
+      '</div>').join('');
+    const cloze = (u.cloze || []).map(c =>
+      '<div class="hint" style="padding:4px 0">· ' + esc(c.sentence) + '</div>').join('');
+    return '<div class="rd" style="padding:2px 0 10px">' +
+        '<b style="font-size:17px">' + esc(u.title || '') + '</b>' +
+        '<div class="hint" style="padding:6px 0 0">' + esc(u.level || '') + ' · ' + (u.lines || 0) + (EN ? ' lines' : ' 句') +
+          (u.durSec ? ' · ' + Math.round(u.durSec / 60) + (EN ? ' min' : ' 分钟') : '') +
+          (u.degraded ? ' · ' + (EN ? 'basic mode' : '基础模式') : (u.channel ? ' · ' + esc(u.channel) : '')) + '</div>' +
+        (u.summary ? '<div class="hint" style="padding:8px 0 0">' + esc(u.summary) + '</div>' : '') +
+      '</div>' +
+      '<div class="card2" style="background:#12151c;border-radius:14px;padding:14px;margin-bottom:10px">' +
+        '<div style="font-size:15px;font-weight:700;margin-bottom:2px">' + (EN ? 'Chunks' : '语块') + '</div>' + chunks +
+      '</div>' +
+      (u.golden && u.golden.line ?
+        '<div class="card2" style="background:#12151c;border-radius:14px;padding:14px;margin-bottom:10px">' +
+          '<div style="font-size:15px;font-weight:700;margin-bottom:6px">' + (EN ? 'Golden line' : '金句') + '</div>' +
+          '<div style="font-size:15px;line-height:1.45">' + esc(u.golden.line) + '</div>' +
+          (u.golden.zh ? '<div class="hint" style="padding-top:6px">' + esc(u.golden.zh) + '</div>' : '') +
+          '<button class="cchip" id="filmSay" style="margin-top:10px">🔊 ' + (EN ? 'Hear it' : '念一遍') + '</button>' +
+        '</div>' : '') +
+      (cloze ? '<div class="card2" style="background:#12151c;border-radius:14px;padding:14px;margin-bottom:10px">' +
+        '<div style="font-size:15px;font-weight:700;margin-bottom:4px">' + (EN ? 'Fill in' : '听句填空') + '</div>' + cloze + '</div>' : '');
+  }
+
+  function paintFilm() {
+    const pend = FILM.pending || 0;
+    filmBody.innerHTML =
+      (pend ? '<button class="big" id="filmFromFeed" style="width:100%;margin-bottom:10px">🎬 ' +
+        (EN ? 'Build a lesson from the ' + pend + ' lines I just watched' : '用刚才看片抓到的 ' + pend + ' 句出一节课') + '</button>' : '') +
+      '<div class="hint" style="padding:2px 0 6px">' +
+        (EN ? 'Or paste subtitles (.srt / .vtt) — one line per sentence works too:' : '或者贴一份字幕（.srt / .vtt），一行一句的文本也行：') + '</div>' +
+      '<textarea id="filmTa" placeholder="1&#10;00:00:01,000 --> 00:00:04,000&#10;You said you would call me." ' +
+        'style="width:100%;min-height:96px;background:#12151c;color:#e7ecf5;border:1px solid #232a36;border-radius:12px;padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical"></textarea>' +
+      '<div style="display:flex;gap:8px;margin-top:8px;margin-bottom:14px">' +
+        '<button class="big" id="filmGo" style="flex:1">' + (EN ? 'Build the lesson' : '出这一课') + '</button>' +
+      '</div>' +
+      (FILM_UNIT ? filmUnitHtml(FILM_UNIT) : '') +
+      ((FILM.units || []).length ?
+        '<div class="hint" style="padding:10px 2px 6px">' + (EN ? 'Earlier lessons' : '之前上过的课') + '</div>' +
+        FILM.units.slice(0, 8).map(u => '<div class="rowitem"><div class="t"><b>' + esc(u.title) +
+          '</b><span>' + esc(u.level) + ' · ' + u.n + (EN ? ' chunks' : ' 个语块') + ' · ' + esc(String(u.at || '').slice(5, 10)) + '</span></div><div class="k">›</div></div>').join('')
+        : '');
+    const feedBtn = $('#filmFromFeed');
+    if (feedBtn) feedBtn.onclick = () => filmBuild({});
+    $('#filmGo').onclick = () => {
+      const ta = $('#filmTa');
+      const txt = (ta && ta.value || '').trim();
+      if (!txt) { toast(EN ? 'Paste some subtitles first' : '先贴一段字幕', 2200); return; }
+      filmBuild({ text: txt });
+    };
+    if ($('#filmSay') && FILM_UNIT && FILM_UNIT.golden) $('#filmSay').onclick = () => { unlockTTS(); sayAll(FILM_UNIT.golden.line); };
+  }
+
+  async function filmBuild(body) {
+    const btn = $('#filmGo') || $('#filmFromFeed');
+    const label = btn && btn.textContent;
+    if (btn) { btn.disabled = true; btn.textContent = EN ? 'Building…' : '正在出课…'; }
+    try {
+      const u = await api('/film/lesson', body, { method: 'POST' });
+      FILM_UNIT = u;
+      FILM.pending = 0;
+      FILM.units = [{ id: u.id, at: u.at, title: u.title, level: u.level, n: (u.chunks || []).length }, ...(FILM.units || [])].slice(0, 20);
+      paintFilm();
+      toast(EN ? 'Lesson ready' : '这一课出来了', 1800);
+    } catch (e) {
+      toast(String(e.message || e), 3000);
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
+  }
+
   async function openPlan() {
     openSheet(planSheet);
     $('#planHd').textContent = EN ? 'Training plan' : '训练计划';
@@ -1640,6 +1739,7 @@
   $('#rdX').onclick = () => closeBook();
   $('#bookBack').onclick = () => closeSheet(bookSheet);
   $('#planBack').onclick = () => closeSheet(planSheet);
+  $('#filmBack').onclick = () => closeSheet(filmSheet);
   window.__SB_BOOK = () => ({ id: BOOK.id, title: BOOK.title, pos: BOOK.pos, total: BOOK.total, playing: BOOK.playing, sum: BOOK.sum.slice(0, 80) });
 
   function paintHands() { if (coachOn()) paintCoachBar(); }
@@ -2247,6 +2347,7 @@
         (PLAN && PLAN.level ? esc(PLAN.level + ' · ' + (PLAN.day ? PLAN.day.unitTitle : '') + ' · ' + (EN ? 'day ' : '第 ') + (PLAN.day ? PLAN.day.n : 1) + (EN ? '' : ' 课'))
           : (EN ? 'Placement test, then 12 lessons with the chunks and tasks that fit your level.' : '先测一下你的水平，再给 12 节课：语块、任务、跟我读，一课一课来')) +
         '</span></div><div class="k">›</div></div>' +
+      '<div class="rowitem" id="mFilm"><div class="t"><b>🎬 ' + (EN ? 'Watch & learn' : '看片课') + '</b><span>' + (FILM && FILM.pending ? (EN ? FILM.pending + ' lines captured from the video you are watching' : '已经从你看的片子里抓到 ' + FILM.pending + ' 句') : (EN ? 'Turn a film you are watching into a lesson' : '把正在看的片子变成一课')) + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mText"><div class="t"><b>📚 ' + (EN ? 'English textbook from my books' : '用我的书练英语') + '</b><span>' +
         (TEXTBOOK ? esc(BOOK.title) + ' · ' + (EN ? 'lesson running' : '正在上课') :
           (EN ? '224 English novels on this Mac. It picks a passage, asks about it, teaches the words you would miss.' : '你机器上 224 本英文小说，挑一段让你读、提问、讲生词，比通用课文扎实得多')) +
@@ -2327,6 +2428,7 @@
     $('#mBook').onclick = () => { primeAudio(); closeSheet(menuSheet); if (bookActive()) { resumeBook(); } else { openBooks('read'); } };
     $('#mText').onclick = () => { unlockTTS(); primeAudio(); closeSheet(menuSheet); openBooks('text'); };
     $('#mPlan').onclick = () => { unlockTTS(); closeSheet(menuSheet); openPlan(); };
+    if ($('#mFilm')) $('#mFilm').onclick = () => { unlockTTS(); closeSheet(menuSheet); openFilm(); };
     $('#mNotes').onclick = () => { closeSheet(menuSheet); openSheet(sheet); noteList(''); };
     $('#mShareAddr').onclick = async () => {
       const addr = (await ensureBase()) + '/share?token=' + encodeURIComponent(store.k);
