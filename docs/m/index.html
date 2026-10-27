@@ -686,7 +686,7 @@
       if (coachOn()) { bumpTurn(); collectFixes(r.text); }
       feed.appendChild(w2);
       if (CSUB === 'read') READ_TARGET = String(r.text || '').replace(/^(Better|Corrections|Rewritten)[^\n]*\n?/gim, '').split(/\n/).map(x => x.trim()).filter(x => /[a-z]/i.test(x))[0] || '';
-      try { if (HANDS) speakOut(r.text); } catch (_) { setTimeout(startListen, 300); }
+      try { speakOut(r.text); } catch (_) { setTimeout(startListen, 300); }
       if (r.saved) toast('🗒 ' + T.saved, 1500);
     } catch (e) {
       wait.remove();
@@ -804,7 +804,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261026-2140';
+  const BUILD = '20261026-2315';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1187,25 +1187,31 @@
     const rest = parts.join(' ').trim().slice(0, 480);
     return [first, rest].filter(Boolean);
   }
-  async function ttsFetch(text) {
+  async function ttsFetch(text, quality) {
     base = await ensureBase();
     const ac = new AbortController();
-    const kill = setTimeout(() => ac.abort(), 9000);   // 服务端慢就放弃，别拖着整轮对话
+    const kill = setTimeout(() => ac.abort(), quality === 'high' ? 16000 : 9000);   // 服务端慢就放弃，别拖着整轮对话
     try {
       const r = await fetch(base + '/tts', {
         method: 'POST',
         signal: ac.signal,
         headers: { 'content-type': 'application/json', ...(store.k ? { authorization: 'Bearer ' + store.k } : {}) },
-        body: JSON.stringify({ text, voice: VOICE, lang: 'en' }),
+        body: JSON.stringify({ text, voice: VOICE, lang: 'en', quality: quality || '' }),
       });
       if (!r.ok) throw new Error('tts ' + r.status);
-      dbg('tts_srv', { prov: r.headers.get('x-tts-provider') || '', ms: r.headers.get('x-tts-ms') || '', chars: text.length });
+      const prov = r.headers.get('x-tts-provider') || '', mdl = r.headers.get('x-tts-model') || '';
+      dbg('tts_srv', { prov, model: mdl, ms: r.headers.get('x-tts-ms') || '', chars: text.length });
+      // 落到备用引擎（melotts / 谷歌翻译）就是电子音，提示一次，别让他以为坏了
+      if (r.headers.get('x-tts-degraded') === '1' && !DEGRADED_TOLD) {
+        DEGRADED_TOLD = true;
+        toast(EN ? 'Voice downgraded to the backup engine (free voice quota is busy)' : '嗓音降级到备用引擎了（免费额度正忙）', 3200);
+      }
       const blob = await r.blob();
       if (blob.size < 800) throw new Error('tts 空音频');
       return URL.createObjectURL(blob);
     } finally { clearTimeout(kill); }
   }
-  let LAST_PLAY_OK = false, LAST_PLAY_ERR = '';
+  let LAST_PLAY_OK = false, LAST_PLAY_ERR = '', DEGRADED_TOLD = false;
   function playUrl(url, rate, seq) {
     LAST_PLAY_OK = false;
     return new Promise(res => {
@@ -1241,11 +1247,11 @@
     if (!parts.length) return true;
     if (!SRV_VOICE_OK) return false;
     const t0 = Date.now();
-    const p0 = await ttsFetch(parts[0]).catch(() => null);
+    const p0 = await ttsFetch(parts[0], 'high').catch(() => null);
     if (seq && seq !== SPEAK_SEQ) { if (p0) URL.revokeObjectURL(p0); return true; }   // 这轮已经过期了
     if (!p0) { SRV_VOICE_OK = false; dbg('tts_fail', { parts: parts.length }); return false; }
     const firstMs = Date.now() - t0;
-    const restP = parts[1] ? ttsFetch(parts[1]).catch(() => null) : null;
+    const restP = parts[1] ? ttsFetch(parts[1], 'high').catch(() => null) : null;
     const played = [];
     let cur = 0, dur = 0;
     await playUrl(p0, rate, seq);
@@ -1295,8 +1301,11 @@
     const m = cut.match(/^[\s\S]*[.!?…]/);
     return (m ? m[0] : cut).trim();
   }
+  // 回答要不要念出来：以前只有免手模式才念，聊天是哑的。现在默认念，菜单里能关。
+  let VOICE_ON = localStorage.getItem('sb_vo') !== '0';
+  function voiceOn() { return VOICE_ON; }
   function speakOut(t) {
-    if (!HANDS) return;
+    if (!HANDS && !VOICE_ON) return;
     const seq = ++SPEAK_SEQ;          // 新一轮开口，上一轮的一切作废
     dbg('speak_begin', { seq, chars: spokenPart(t).length });
     setState('speak');
@@ -1547,12 +1556,12 @@
       paintReader();
       dbg('book_chunk', { pos: chunk.next, total: chunk.total, chars: chunk.text.length });
       const parts = splitRead(chunk.text, 420);
-      let pref = parts.length > 1 ? ttsFetch(parts[1]).catch(() => null) : null;
+      let pref = parts.length > 1 ? ttsFetch(parts[1], 'high').catch(() => null) : null;
       for (let i = 0; i < parts.length; i++) {
         if (!BOOK.playing || BOOK.seq !== seq) return;
         let url = null;
-        try { url = await (i === 0 ? ttsFetch(parts[0]) : (i === 1 ? pref : ttsFetch(parts[i]))); } catch (_) {}
-        if (i === 1 && parts.length > 2) pref = ttsFetch(parts[2]).catch(() => null);
+        try { url = await (i === 0 ? ttsFetch(parts[0], 'high') : (i === 1 ? pref : ttsFetch(parts[i], 'high'))); } catch (_) {}
+        if (i === 1 && parts.length > 2) pref = ttsFetch(parts[2], 'high').catch(() => null);
         if (i === 0 && parts.length > 1) { /* 第二块已在预取 */ }
         if (!url) { sayBrowser(parts[i], BOOK.rate, null); }
         else {
@@ -2225,6 +2234,8 @@
               (coachOn() ? '已开启 · 用英文说，我先把你的句子改地道' : '练英文：先把你的句子改地道，再接着聊')) +
         '</span></div><div class="k">' + (coachOn() ? (EN ? 'ON' : '开') : (EN ? 'OFF' : '关')) + ' ›</div></div>' +
       '<div class="sec">声音</div>' +
+      '<div class="rowitem" id="mVoiceOn"><div class="t"><b>🔊 ' + (EN ? 'Speak replies' : '回答朗读') + '</b><span>' + (EN ? 'Read every answer out loud' : '每条回答都念出来') + '</span></div>' +
+        '<div class="k">' + (VOICE_ON ? (EN ? 'ON' : '开') : (EN ? 'OFF' : '关')) + ' ›</div></div>' +
       '<div class="rowitem" id="mVoiceTop"><div class="t"><b>🔊 ' + (EN ? 'Voice' : '嗓音') + '</b><span>' +
         esc(pickVoiceName()) + (EL_HAS ? ' · ElevenLabs' : '') + '</span></div><div class="k">' + (EN ? 'change' : '换') + ' ›</div></div>' +
       '<div id="voiceBox" style="display:none;padding:4px 14px 10px">' +
@@ -2245,6 +2256,14 @@
       '<div class="rowitem"><div class="t"><b>Sidebrain</b><span>' + (EN ? 'Routes each message to the cheapest model that fits. Notes stay in plain Markdown.' : '每条消息自动交给最合适又最便宜的模型。笔记就是普通 Markdown 文件。') + '</span></div></div>' +
       '<div class="hint" style="padding-top:16px">' + (EN ? 'Tip: Share → Add to Home Screen to use it like an app.' : '提示：点 Safari 的分享 → 添加到主屏幕，用起来就跟 App 一样。') + '</div>' +
       '<div class="hint" style="text-align:center;opacity:.45;font-size:11.5px;padding-top:6px">v20-26 02:5-</div>';
+    $('#mVoiceOn').onclick = () => {
+      VOICE_ON = !VOICE_ON;
+      localStorage.setItem('sb_vo', VOICE_ON ? '1' : '0');
+      const k = $('#mVoiceOn').querySelector('.k');
+      if (k) k.textContent = VOICE_ON ? (EN ? 'ON' : '开') : (EN ? 'OFF' : '关');
+      if (VOICE_ON) { unlockTTS(); sayAll(EN ? 'Voice is on.' : '朗读打开了。', 1); }
+      toast(VOICE_ON ? (EN ? '🔊 Speak replies on' : '🔊 回答会念出来') : (EN ? '🔇 Muted' : '🔇 不念了'), 1400);
+    };
     $('#mVoiceTop').onclick = () => {
       const box = $('#voiceBox');
       box.style.display = box.style.display === 'none' ? 'block' : 'none';
