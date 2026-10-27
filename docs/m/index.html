@@ -804,7 +804,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261026-2325';
+  const BUILD = '20261026-2330';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -2261,7 +2261,7 @@
       '<div class="sec">关于</div>' +
       '<div class="rowitem"><div class="t"><b>Sidebrain</b><span>' + (EN ? 'Routes each message to the cheapest model that fits. Notes stay in plain Markdown.' : '每条消息自动交给最合适又最便宜的模型。笔记就是普通 Markdown 文件。') + '</span></div></div>' +
       '<div class="hint" style="padding-top:16px">' + (EN ? 'Tip: Share → Add to Home Screen to use it like an app.' : '提示：点 Safari 的分享 → 添加到主屏幕，用起来就跟 App 一样。') + '</div>' +
-      '<div class="hint" style="text-align:center;opacity:.45;font-size:11.5px;padding-top:6px">v20-26 02:5-</div>';
+      '<div class="hint" style="text-align:center;opacity:.45;font-size:11.5px;padding-top:6px">build ' + BUILD + '</div>';
     $('#mVoiceOn').onclick = () => {
       VOICE_ON = !VOICE_ON;
       localStorage.setItem('sb_vo', VOICE_ON ? '1' : '0');
