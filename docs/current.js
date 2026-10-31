@@ -1,1 +1,1 @@
-window.__SB_CUR="https://dated-advance-twelve-love.trycloudflare.com";
+window.__SB_CUR="https://concentrate-citizenship-apollo-offers.trycloudflare.com";
