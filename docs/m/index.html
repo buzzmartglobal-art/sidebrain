@@ -411,32 +411,65 @@
   }
 
   let baseReady = null;
-  function ensureBase() {
+  // 隧道地址会变：探一下活不活，别把一个死地址当成真的
+  const alive = async (u, ms = 4000) => {
+    try {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), ms);
+      const r = await fetch(u + '/health', { cache: 'no-store', signal: c.signal });
+      clearTimeout(t);
+      return r.ok;
+    } catch (_) { return false; }
+  };
+  const rememberBase = u => { try { if (u) localStorage.setItem('sb_base', u); } catch (_) {} return u; };
+  const forgetBase = u => { try { if (localStorage.getItem('sb_base') === u) localStorage.removeItem('sb_base'); } catch (_) {} };
+
+  function ensureBase(force) {
+    if (force) baseReady = null;
     if (!baseReady) baseReady = (async () => {
       // 自己就是 Sidebrain 服务器？
       try {
         const h = await fetch(location.origin + '/health', { cache: 'no-store' });
-        if (h.ok) return location.origin;
+        if (h.ok) return rememberBase(location.origin);
       } catch (_) {}
       // 不是的话说明这是个静态页（GitHub Pages），按 endpoint.json 找当前隧道
+      const candidates = [];
       for (const f of ['endpoint.json', '../endpoint.json']) {
         try {
           const j = await (await fetch(f, { cache: 'no-store' })).json();
-          if (j && j.serverBase) return String(j.serverBase).replace(/\/$/, '');
+          if (j && j.serverBase) candidates.push(String(j.serverBase).replace(/\/$/, ''));
         } catch (_) {}
       }
-      return location.origin;
+      // endpoint.json 上写的地址也可能是死的（隧道换址那一刻）：探活 + 记住上次能用的
+      let lastGood = ''; try { lastGood = localStorage.getItem('sb_base') || ''; } catch (_) {}
+      for (const u of candidates) {
+        if (u && u !== lastGood && await alive(u)) return rememberBase(u);
+      }
+      if (lastGood && await alive(lastGood, 6000)) return lastGood;
+      for (const u of candidates) if (u) return rememberBase(u);   // 都不通就先照写的走，报错也真实
+      return rememberBase(lastGood || location.origin);
     })();
     return baseReady;
   }
 
-  async function api(path, body, { method } = {}) {
+  async function api(path, body, { method, retry = true } = {}) {
     base = await ensureBase();
-    const r = await fetch(base + path, {
-      method: method || (body ? 'POST' : 'GET'),
-      headers: { 'content-type': 'application/json', ...(store.k ? { authorization: 'Bearer ' + store.k } : {}) },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    let r;
+    try {
+      r = await fetch(base + path, {
+        method: method || (body ? 'POST' : 'GET'),
+        headers: { 'content-type': 'application/json', ...(store.k ? { authorization: 'Bearer ' + store.k } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (e) {
+      // 网络层失败（隧道换址 / 断网）：重探一次地址再来，别让用户看到一个红字就完了
+      if (!retry || e.name === 'AbortError') throw e;
+      forgetBase(base);
+      const nb = await ensureBase(true);
+      if (nb === base) throw e;
+      dbg('rebase', { old: base, now: nb });
+      return api(path, body, { method, retry: false });
+    }
     const txt = await r.text();
     let j = null; try { j = JSON.parse(txt); } catch (_) { j = { raw: txt }; }
     if (!r.ok) { const e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; e.data = j; throw e; }
@@ -833,7 +866,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261027-1905';
+  const BUILD = '20261031-1745';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
