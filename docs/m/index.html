@@ -866,7 +866,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261101-1712';
+  const BUILD = '20261101-1720';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -2597,7 +2597,7 @@
   (function homeHint() {
     const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
     const stand = (navigator.standalone === true) || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
-    let seen = ''; try { seen = kv('sb_home_hint') || ''; } catch (_) {}
+    let seen = ''; try { seen = kv('home_hint').get(); } catch (_) {}
     if (!iOS || stand || seen) return;
     const bar = document.createElement('div');
     bar.id = 'homeHint';
@@ -2610,7 +2610,7 @@
       '</span><button id="homeHintX" style="flex:none;background:#2a3242;border:0;color:#cfd6e2;border-radius:8px;padding:6px 10px;font-size:12.5px">' +
       (EN ? 'Got it' : '知道了') + '</button>';
     setTimeout(() => { document.body.appendChild(bar); }, 900);
-    bar.querySelector('#homeHintX').onclick = () => { try { kv('sb_home_hint', '1'); } catch (_) {} bar.remove(); };
+    bar.querySelector('#homeHintX').onclick = () => { try { kv('home_hint').set('1'); } catch (_) {} bar.remove(); };
   })();
 
   // 在 Safari 里打开（不是主屏独立窗口）时，底部有浏览器工具栏，输入框往上让一点
