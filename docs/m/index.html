@@ -866,7 +866,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261101-1705';
+  const BUILD = '20261101-1712';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -2591,6 +2591,26 @@
       if (bs && /^https?:\/\//.test(bs)) store.base = bs;
       if (tk) history.replaceState(null, '', location.pathname + '?u=' + encodeURIComponent(location.pathname));
     } catch (_) {}
+  })();
+
+  // iPhone 上还开在 Safari 里时，提醒一次「添加到主屏幕」——装一次就不会 7 天失效
+  (function homeHint() {
+    const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const stand = (navigator.standalone === true) || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    let seen = ''; try { seen = kv('sb_home_hint') || ''; } catch (_) {}
+    if (!iOS || stand || seen) return;
+    const bar = document.createElement('div');
+    bar.id = 'homeHint';
+    bar.style.cssText = 'position:fixed;left:8px;right:8px;top:calc(env(safe-area-inset-top,0px) + 6px);z-index:200;' +
+      'background:#1b2130;border:1px solid #2c3444;border-radius:12px;padding:9px 11px;display:flex;gap:9px;' +
+      'align-items:center;font-size:12.5px;color:#cfd6e2;box-shadow:0 6px 22px rgba(0,0,0,.45)';
+    bar.innerHTML = '<span style="flex:1;line-height:1.45">' +
+      (EN ? 'Tap <b>Share</b> → <b>Add to Home Screen</b> — then it opens like an app and never expires.'
+          : '点下面的 <b>分享</b> → <b>添加到主屏幕</b>，以后就像 App 一样打开，不会过期。') +
+      '</span><button id="homeHintX" style="flex:none;background:#2a3242;border:0;color:#cfd6e2;border-radius:8px;padding:6px 10px;font-size:12.5px">' +
+      (EN ? 'Got it' : '知道了') + '</button>';
+    setTimeout(() => { document.body.appendChild(bar); }, 900);
+    bar.querySelector('#homeHintX').onclick = () => { try { kv('sb_home_hint', '1'); } catch (_) {} bar.remove(); };
   })();
 
   // 在 Safari 里打开（不是主屏独立窗口）时，底部有浏览器工具栏，输入框往上让一点
