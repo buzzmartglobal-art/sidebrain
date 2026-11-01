@@ -132,7 +132,7 @@
         <a class="btn primary" href="https://github.com/buzzmartglobal-art/sidebrain/releases/latest">Install for Safari</a>
         <a class="btn ghost" href="beta.html">Known issues</a>
       </div>
-      <p class="fine">macOS + Safari 16 or newer · 7 days free, then $8/month · cancel in one click</p>
+      <p class="fine">macOS + Safari 16 or newer · free while it is in beta · no card, no account</p>
       <div class="shot"><img src="img/sidebar-chat.png" alt="Sidebrain sidebar answering a question about the page you are reading"></div>
     </div>
   </div>
@@ -207,34 +207,24 @@
 
 <section id="price">
   <div class="wrap">
-    <h2>Price</h2>
-    <p class="lead">7 days free. Then $8 a month. No per-question metering, no seat math, no annual lock-in.</p>
-    <div class="pricebox" style="grid-template-columns:repeat(2,1fr)">
+    <h2>Free</h2>
+    <p class="lead">No trial clock, no card, no monthly fee. It is free while I am still building it.</p>
+    <div class="pricebox" style="grid-template-columns:1fr">
       <div class="tier">
-        <div class="tag">Free trial · 7 days</div>
+        <div class="tag">Everything, for now</div>
         <div class="amount">$0</div>
         <ul>
-          <li>Everything included, no feature gate</li>
-          <li>No card, no account to cancel</li>
-          <li>Works on any site with ⇧⌘K</li>
+          <li>Unlimited asking (fair-use ceiling 600/day so the free model quotas do not run dry for everyone)</li>
+          <li>I hold the model accounts — you install nothing, pay nothing</li>
+          <li>Works on any site with &#8679;&#8984;K</li>
           <li>Images, files and voice input</li>
-          <li>Memory of pages and past chats, stored on your Mac</li>
-        </ul>
-        <a class="btn primary" href="https://github.com/buzzmartglobal-art/sidebrain/releases/latest">Install and start</a>
-      </div>
-      <div class="tier pro">
-        <div class="tag">Sidebrain · monthly</div>
-        <div class="amount">$8 <small>/month</small></div>
-        <ul>
-          <li>Unlimited asking (fair-use ceiling 200/day)</li>
-          <li>We hold the model accounts, you hold nothing</li>
-          <li>Free tiers first, so most questions cost us almost nothing — that is how $8 works</li>
+          <li>Memory of pages and past chats, stored on your own disk</li>
           <li>Ten interface languages, voice in and out</li>
-          <li>Cancel any time; memory stays on your disk</li>
         </ul>
-        <a class="btn ghost" href="#faq">How billing works</a>
+        <a class="btn primary" href="https://buzzmartglobal-art.github.io/sidebrain/m/">Open it on your phone</a>
       </div>
     </div>
+    <p style="margin-top:22px;font-size:14px;color:#6b7280">If it ever costs money, testers hear about it first, and nothing you install today starts charging by itself.</p>
   </div>
 </section>
 
@@ -243,8 +233,8 @@
     <h2>Questions</h2>
     <div style="margin-top:26px">
       <details><summary>What do I need to install?</summary><p>One userscript and one email address. No API keys, no model names, no provider accounts. If you already have a ChatGPT or Claude subscription you can point the advanced mode at it, but the product does not need it.</p></details>
-      <details><summary>What happens after 7 days?</summary><p>Chat routing pauses until you subscribe at $8/month. Your memory and settings stay on disk and come back the moment you subscribe. Nothing is deleted, nothing auto-charges.</p></details>
-      <details><summary>Why is it so cheap?</summary><p>Because most questions are answered on free tiers — Gemini, Groq, OpenRouter free models, Cloudflare — and only fall through to a paid API when those are exhausted or out of depth. You are paying for the routing, not for tokens.</p></details>
+      <details><summary>Is it really free? What is the catch?</summary><p>Right now it is free, no trial clock and no card. The catch is honest: it runs on free model tiers on one small server, so a hard day can be slow or hit the fair-use ceiling of 600 questions. When the product is solid enough to charge for, existing users hear first.</p></details>
+      <details><summary>How can it be free?</summary><p>Because most questions are answered on free tiers — Gemini, Groq, OpenRouter free models, Cloudflare — and only fall through to a paid API when those are exhausted or out of depth. You are paying for the routing, not for tokens.</p></details>
       <details><summary>Do I need to sign in to Sidebrain?</summary><p>No. There is no Sidebrain account. Your API keys are stored in Safari's userscript storage on your Mac and sent only to the provider you picked.</p></details>
       <details><summary>Does it work with my ChatGPT Plus subscription?</summary><p>Pro can use the OpenAI CLI you installed and logged into yourself. Whether that use fits your agreement with OpenAI is your call — the switch ships off by default, and we never proxy or resell quota.</p></details>
       <details><summary>Why not an App Store app?</summary><p>Safari extensions can't carry a persistent right-side panel through a normal extension; a userscript runs in the page and can. It also means no review queue and no Xcode on your side. A native app is planned.</p></details>
@@ -252,7 +242,7 @@
       <details><summary>What happens when a free tier runs out?</summary><p>The channel is put on cooldown for as long as the provider asks, the router skips it, and it comes back on its own. You see which channel answered under every reply.</p></details>
       <details><summary>Is this a finished product?</summary><p>No. Pro is a beta: one developer, no support desk. Expect the panel to break on some sites. The <a href="docs/beta.html">beta notes</a> list what is known to be broken and what to include in a report.</p></details>
       <details><summary>What do you want from testers?</summary><p>Which site it broke on, which channel answered (the line under the reply), and what you expected instead. That is it — <a href="https://github.com/buzzmartglobal-art/sidebrain/issues/new/choose">open an issue</a>.</p></details>
-      <details><summary>Will it cost money later?</summary><p>Yes, a Pro tier is planned after the beta. Nothing you install today starts charging by itself, and testers get told before anyone else.</p></details>
+      <details><summary>Will it cost money later?</summary><p>Probably, once it stops breaking on real sites. Nothing you install today starts charging by itself, and testers get told before anyone else.</p></details>
     </div>
   </div>
 </section>

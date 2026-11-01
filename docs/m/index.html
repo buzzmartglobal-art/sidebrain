@@ -299,7 +299,7 @@
 <div id="gate" class="hide">
   <div class="logo">✦</div>
   <h1 id="gTitle">把脑子装进手机</h1>
-  <p id="gSub">输一个邮箱就开始用。7 天免费，之后 $8 一个月，不用挑模型。</p>
+  <p id="gSub">输一个邮箱就开始用。现在完全免费，不用挑模型。</p>
   <input id="gMail" type="email" inputmode="email" autocomplete="email" placeholder="你的邮箱">
   <button class="btn primary" id="gGo">开始</button>
   <div class="tip" id="gTip">同一个邮箱在电脑和手机上都是一个账号</div>
@@ -323,12 +323,12 @@
     zh: { hi:'要问点什么？', hp:'截图、文件、语音都能直接发进来，回答会自动存进你的笔记库。',
       ph:'发消息…', hint:'回答来自自动选中的模型，你不用挑', notes:'笔记', settings:'设置',
       send:'发送', thinking:'在想…', copy:'复制', copied:'已复制', retry:'重试', del:'删除',
-      gateTitle:'把脑子装进手机', gateSub:'输一个邮箱就开始用。7 天免费，之后 $8 一个月，不用挑模型。',
+      gateTitle:'把脑子装进手机', gateSub:'输一个邮箱就开始用。现在完全免费，不用挑模型。',
       gateBtn:'开始', gateMail:'你的邮箱', gateTip:'同一个邮箱在电脑和手机上都是一个账号', howto:'怎么装到主屏？', sprite:'想在每个网页上都有小精灵？',
       q1:'帮我总结这个页面', q2:'把这段代码解释一下', q3:'今天有什么值得关注的',
       empty:'这里还是空的', memo:'今日备忘录', newNote:'新建笔记', save:'保存', cancel:'取消',
       title:'标题', body:'正文', search:'搜索笔记', readFail:'读不出来', netFail:'网络不通，稍后再试',
-      acctTrial:'试用中', acctActive:'已订阅', days:'天可用', logout:'换个账号', clear:'清空对话',
+      acctTrial:'试用中', acctActive:'已订阅', acctFree:'免费使用', days:'天可用', logout:'换个账号', clear:'清空对话',
       voice:'说话', listening:'听着…', tapStop:'点一下结束', files:'文件', img:'图片', attached:'附件',
       saved:'已存进笔记', memoBusy:'正在生成今天的备忘录…', memoDone:'备忘录写好了', noNotes:'笔记本里还没有东西',
       attachments:'附件', voiceUnsupported:'这台设备不支持网页语音，用键盘上的麦克风键就行', saveFail:'没存上', clip:'收一篇', clipPh:'贴一个网页链接', clipBusy:'正在读这篇文章并整理…', clipDone:'已存进剪藏', exportV:'导出笔记库', exportTip:'拿到一个 zip，Obsidian 或其他笔记软件都能直接打开', shareAddr:'分享地址', shareTip:'粘到快捷指令里，手机上分享文章就能直接存进来', copyAddr:'复制地址', addrCopied:'地址已复制',
@@ -338,12 +338,12 @@
       ph:'Message…', hint:'A model is picked for you — no choosing', notes:'Notes', settings:'Settings',
       spriteLive:'Make it live on every page', spriteLiveTip:'Install once with the free Userscripts extension — then the sprite is on every page you open', spriteApp:'Download the sprite shortcut', spriteAppTip:'Tap the downloaded file → Add Shortcut; after that you can call the sprite on any shared page', spriteCode:'Copy the sprite bookmark', spriteCodeTip:'Paste it into the address bar and save it as a bookmark', spriteCopied:'Link copied — save it as a bookmark in Safari', spriteNew:'new', spriteBusy:'Signing your shortcut…', spriteJsCopied:'Script copied — paste it into a “Run JavaScript on Web Page” action', spriteDl:'Copy the script instead', spriteDlTip:'Make a shortcut yourself with “Run JavaScript on Web Page” and paste this in',
       send:'Send', thinking:'Thinking…', copy:'Copy', copied:'Copied', retry:'Retry', del:'Delete',
-      gateTitle:'Your brain, on your phone', gateSub:'Enter an email to start. 7 days free, then $8/month. No model picking.',
+      gateTitle:'Your brain, on your phone', gateSub:'Enter an email to start. Free for now — no model picking.',
       gateBtn:'Start', gateMail:'Your email', gateTip:'The same email is the same account on desktop and phone', howto:'Add to Home Screen?', sprite:'Want the sprite on every page?',
       q1:'Summarize this page', q2:'Explain this code', q3:"What's worth knowing today",
       empty:'Nothing here yet', memo:"Today's memo", newNote:'New note', save:'Save', cancel:'Cancel',
       title:'Title', body:'Body', search:'Search notes', readFail:"Couldn't read that", netFail:'Network hiccup, try again',
-      acctTrial:'Trial', acctActive:'Subscribed', days:'days left', logout:'Switch account', clear:'Clear chat',
+      acctTrial:'Trial', acctActive:'Subscribed', acctFree:'Free', days:'days left', logout:'Switch account', clear:'Clear chat',
       voice:'Speak', listening:'Listening…', tapStop:'Tap to stop', files:'Files', img:'Image', attached:'Attached',
       saved:'Saved to notes', memoBusy:"Writing today's memo…", memoDone:'Memo ready', noNotes:'Your notebook is empty',
       attachments:'Attachments', voiceUnsupported:'Voice needs a newer Safari — use the mic key on your keyboard', saveFail:"Couldn't save", clip:'Clip a page', clipPh:'Paste a link', clipBusy:'Reading and summarising…', clipDone:'Clipped', exportV:'Export my notes', exportTip:'You get a zip any notes app can open', shareAddr:'Share address', shareTip:'Paste it into the shortcut once, then share any page to Sidebrain', copyAddr:'Copy address', addrCopied:'Address copied',
@@ -741,7 +741,7 @@
       if (r.saved) toast('🗒 ' + T.saved, 1500);
     } catch (e) {
       wait.remove();
-      const note = e.status === 402 ? '试用结束了，去 /join 订阅（$8/月）' : (e.message || T.netFail);
+      const note = e.status === 402 ? '这个账号被暂停了，换一个邮箱试试' : (e.message || T.netFail);
       const { wrap: w3, bub } = rowEl('assistant', '⚠️ ' + note);
       const again = document.createElement('div');
       again.className = 'meta';
@@ -836,7 +836,7 @@
     try {
       ACCT = await api('/account');
       const left = ACCT.daysLeft != null ? Math.max(0, Math.ceil(ACCT.daysLeft)) : null;
-      $('#sub').textContent = ACCT.plan === 'active' ? '✓ ' + T.acctActive + ' · ' + (ACCT.email || '') :
+      $('#sub').textContent = (ACCT.plan === 'active' || ACCT.plan === 'free') ? '✓ ' + (ACCT.plan === 'free' ? T.acctFree : T.acctActive) + ' · ' + (ACCT.email || '') :
         (T.acctTrial + ' · ' + (left != null ? left + ' ' + T.days : '') );
       $('#gate').classList.add('hide');
       return true;
@@ -866,7 +866,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261031-1745';
+  const BUILD = '20261101-1705';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -2363,7 +2363,7 @@
     $('#menuBody').innerHTML =
       '<div class="sec">账号</div>' +
       '<div class="rowitem"><div class="t"><b>' + esc(ACCT && ACCT.email || '—') + '</b><span>' +
-        (ACCT ? (ACCT.plan === 'active' ? T.acctActive : T.acctTrial + ' · ' + (left != null ? left + ' ' + T.days : '')) : '') + '</span></div></div>' +
+        (ACCT ? (ACCT.plan === 'active' || ACCT.plan === 'free' ? (ACCT.plan === 'free' ? T.acctFree : T.acctActive) : T.acctTrial + ' · ' + (left != null ? left + ' ' + T.days : '')) : '') + '</span></div></div>' +
       '<div class="sec">分享进来</div>' +
       '<div class="rowitem" id="mSpriteLive"><div class="t"><b>✦ ' + T.spriteLive + '</b><span>' + T.spriteLiveTip + '</span></div><div class="k">' + T.spriteNew + ' ›</div></div>' +
       '<div class="rowitem" id="mSpriteFile"><div class="t"><b>⬇ ' + (EN ? 'Download the script file' : '下载脚本文件') + '</b><span>' + (EN ? 'Saves Sidebrain.user.js to Files — drop it into the Userscripts folder. The most reliable way.' : '存成 Sidebrain.user.js，拖进「文件」App 里的 Userscripts 文件夹 —— 最稳的一条，不碰扩展的安装面板') + '</span></div><div class="k">›</div></div>' +
