@@ -1,1 +1,1 @@
-window.__SB_CUR="https://concentrate-citizenship-apollo-offers.trycloudflare.com";
+window.__SB_CUR="https://interracial-modeling-emerging-clouds.trycloudflare.com";
