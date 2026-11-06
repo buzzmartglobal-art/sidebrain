@@ -472,7 +472,8 @@
       let nb = '';
       for (let i = 0; i < 6; i++) {
         const cand = await ensureBase(true);
-        if (cand && cand !== dead && await alive(cand, 5000)) { nb = cand; break; }
+        // 同一地址也算：可能只是网抖了一下，地址根本没换
+        if (cand && await alive(cand, 5000)) { nb = cand; break; }
         await new Promise(r => setTimeout(r, 1400));
       }
       if (!nb) { dbg('rebase_fail', { dead }); throw e; }
@@ -875,7 +876,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261105-2135';
+  const BUILD = '20261105-2142';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
