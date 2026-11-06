@@ -327,7 +327,7 @@
       gateBtn:'开始', gateMail:'你的邮箱', gateTip:'同一个邮箱在电脑和手机上都是一个账号', howto:'怎么装到主屏？', sprite:'想在每个网页上都有小精灵？',
       q1:'帮我总结这个页面', q2:'把这段代码解释一下', q3:'今天有什么值得关注的',
       empty:'这里还是空的', memo:'今日备忘录', newNote:'新建笔记', save:'保存', cancel:'取消',
-      title:'标题', body:'正文', search:'搜索笔记', readFail:'读不出来', netFail:'网络不通，稍后再试',
+      title:'标题', body:'正文', search:'搜索笔记', readFail:'读不出来', netFail:'网络不通，稍后再试', reconnecting:'正在重连服务器…',
       acctTrial:'试用中', acctActive:'已订阅', acctFree:'免费使用', days:'天可用', logout:'换个账号', clear:'清空对话',
       voice:'说话', listening:'听着…', tapStop:'点一下结束', files:'文件', img:'图片', attached:'附件',
       saved:'已存进笔记', memoBusy:'正在生成今天的备忘录…', memoDone:'备忘录写好了', noNotes:'笔记本里还没有东西',
@@ -342,7 +342,7 @@
       gateBtn:'Start', gateMail:'Your email', gateTip:'The same email is the same account on desktop and phone', howto:'Add to Home Screen?', sprite:'Want the sprite on every page?',
       q1:'Summarize this page', q2:'Explain this code', q3:"What's worth knowing today",
       empty:'Nothing here yet', memo:"Today's memo", newNote:'New note', save:'Save', cancel:'Cancel',
-      title:'Title', body:'Body', search:'Search notes', readFail:"Couldn't read that", netFail:'Network hiccup, try again',
+      title:'Title', body:'Body', search:'Search notes', readFail:"Couldn't read that", netFail:'Network hiccup, try again', reconnecting:'Reconnecting to the server…',
       acctTrial:'Trial', acctActive:'Subscribed', acctFree:'Free', days:'days left', logout:'Switch account', clear:'Clear chat',
       voice:'Speak', listening:'Listening…', tapStop:'Tap to stop', files:'Files', img:'Image', attached:'Attached',
       saved:'Saved to notes', memoBusy:"Writing today's memo…", memoDone:'Memo ready', noNotes:'Your notebook is empty',
@@ -434,10 +434,12 @@
       } catch (_) {}
       // 不是的话说明这是个静态页（GitHub Pages），按 endpoint.json 找当前隧道
       const candidates = [];
+      const push = u => { u = String(u || '').replace(/\/+$/, ''); if (u && !candidates.includes(u)) candidates.push(u); };
       for (const f of ['endpoint.json', '../endpoint.json']) {
         try {
-          const j = await (await fetch(f, { cache: 'no-store' })).json();
-          if (j && j.serverBase) candidates.push(String(j.serverBase).replace(/\/$/, ''));
+          const j = await (await fetch(f + '?t=' + Date.now(), { cache: 'no-store' })).json();
+          if (j && j.serverBase) push(j.serverBase);
+          if (j && Array.isArray(j.recent)) j.recent.forEach(push);
         } catch (_) {}
       }
       // endpoint.json 上写的地址也可能是死的（隧道换址那一刻）：探活 + 记住上次能用的
@@ -462,12 +464,19 @@
         body: body ? JSON.stringify(body) : undefined,
       });
     } catch (e) {
-      // 网络层失败（隧道换址 / 断网）：重探一次地址再来，别让用户看到一个红字就完了
+      // 网络层失败（隧道换址 / 断网 / 隧道抖了两秒）：先静默重连，别让人看到红字
       if (!retry || e.name === 'AbortError') throw e;
-      forgetBase(base);
-      const nb = await ensureBase(true);
-      if (nb === base) throw e;
-      dbg('rebase', { old: base, now: nb });
+      const dead = base;
+      forgetBase(dead);
+      toast(T.reconnecting || '正在重连服务器…', 2600);
+      let nb = '';
+      for (let i = 0; i < 6; i++) {
+        const cand = await ensureBase(true);
+        if (cand && cand !== dead && await alive(cand, 5000)) { nb = cand; break; }
+        await new Promise(r => setTimeout(r, 1400));
+      }
+      if (!nb) { dbg('rebase_fail', { dead }); throw e; }
+      dbg('rebase', { old: dead, now: nb });
       return api(path, body, { method, retry: false });
     }
     const txt = await r.text();
@@ -866,7 +875,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261101-1729';
+  const BUILD = '20261105-2135';
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
