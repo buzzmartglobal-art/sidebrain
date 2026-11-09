@@ -641,7 +641,7 @@
     rec.interimResults = true;
     rec.continuous = false;
     const ta = $('#ta'); const before = ta.value;
-    rec.onstart = () => { recOn = true; mic.classList.add('rec'); toast(T.listening, 9000); };
+    rec.onstart = () => { recOn = true; SPK_T0 = Date.now(); mic.classList.add('rec'); toast(T.listening, 9000); };
     rec.onresult = e => {
       let s = '';
       for (let i = e.resultIndex; i < e.results.length; i++) s += e.results[i][0].transcript;
@@ -677,8 +677,18 @@
     const text = ta.value.trim();
     if (busy) return;
     if (!text && !ATT.image && !ATT.files.length) return;
-    if (HANDS) stopSpeaking();        // 你一开口，它就先闭上嘴
+    if (HANDS) {
+      // 打断要分真假：一声「嗯」是 backchannel（顶尖产品也不打断），
+      // 说满 3 个词或讲了 0.4 秒以上才是真的插话。
+      const words = text.split(/\s+/).filter(Boolean).length;
+      const talkMs = SPK_T0 ? Date.now() - SPK_T0 : 0;
+      const cut = words >= 3 || talkMs >= 400;
+      dbg('bargein', { words, ms: talkMs, cut });
+      if (cut) stopSpeaking();
+    }
+    SPK_T0 = 0;
     busy = true; $('#send').disabled = true;
+    playAck();                        // 它还没憋出正文，先哼一声填住静默
     const att = { image: ATT.image, files: ATT.files.slice() };
     const shown = text || (att.image ? '📷 ' + T.img : '📄 ' + att.files.map(f => f.name).join(', '));
     const msg = { role: 'user', text: shown, att: { image: att.image, files: att.files.map(f => ({ name: f.name })) } };
@@ -1238,6 +1248,44 @@
     try { AUD.pause(); AUD.removeAttribute('src'); AUD.load(); } catch (_) {}
     try { TTS && TTS.cancel(); } catch (_) {}
   }
+  /* ---------- 消静默：等待期先出个语气词 ---------- */
+  // Gemini 那句 TTS 不管多短都固定 3.5 秒（实测 "Was it friendly?" 也是 3.54s），
+  // 所以一轮对话从你闭嘴到它出声，中间是纯静默。这里进页面就把六句短话后台
+  // 合成好（后端有缓存，第二次 2.7ms），你说完立刻放一句「Mm-hm」把空填住。
+  let SPK_T0 = 0;
+  const ACK_PHRASES = ['Mm-hm.', 'Right.', 'Okay.', 'Sure.', 'Yeah.', 'Got it.'];
+  const ACK_URLS = [];
+  let ACK_AUD = null;
+  let ACK_WARMED = false;
+  function stopAck() {
+    if (!ACK_AUD) return;
+    try { ACK_AUD.pause(); ACK_AUD.src = ''; } catch (_) {}
+    ACK_AUD = null;
+  }
+  function playAck() {
+    if (!ACK_URLS.length) return;
+    stopAck();
+    try {
+      const a = new Audio(ACK_URLS[Math.floor(Math.random() * ACK_URLS.length)]);
+      a.volume = 0.55;                       // 只是「我在听」，不许盖过正文
+      a.onended = () => { try { a.src = ''; } catch (_) {} if (ACK_AUD === a) ACK_AUD = null; };
+      ACK_AUD = a;
+      const pr = a.play();
+      if (pr && pr.catch) pr.catch(() => { if (ACK_AUD === a) ACK_AUD = null; });
+      dbg('ack', { n: ACK_URLS.length });
+    } catch (_) { ACK_AUD = null; }
+  }
+  async function prewarmVoice() {
+    if (ACK_WARMED || typeof ttsFetch !== 'function') return;
+    ACK_WARMED = true;
+    const t0 = Date.now();
+    for (let i = 0; i < ACK_PHRASES.length; i += 2) {         // 两两并发，别把 TTS 限流打满
+      const got = await Promise.all(ACK_PHRASES.slice(i, i + 2).map(t =>
+        ttsFetch(t, 'fast').catch(() => null)));
+      got.forEach(u => { if (u) ACK_URLS.push(u); });
+    }
+    dbg('ack_warm', { ok: ACK_URLS.length, ms: Date.now() - t0 });
+  }
   let AUD_PRIMED = false;
   // iOS 只给「手指头按下的那一瞬间」出声的许可。点播放时先同步放一段静音，
   // 这只 Audio 就永久解锁了 —— 不这么做，后面等接口回来的 play() 一定被拒。
@@ -1248,6 +1296,7 @@
       const pr = AUD.play();
       if (pr && pr.then) pr.then(() => { AUD_PRIMED = true; try { AUD.pause(); } catch (_) {} AUD.muted = false; }).catch(() => { AUD.muted = false; });
     } catch (_) { try { AUD.muted = false; } catch (_) {} }
+    setTimeout(prewarmVoice, 400);         // 等这只 Audio 解锁了再热缓存，别跟它抢
   }
   function unlockAudio() {
     if (audReady) return;
@@ -1386,6 +1435,7 @@
   let VOICE_ON = localStorage.getItem('sb_vo') !== '0';
   function voiceOn() { return VOICE_ON; }
   function speakOut(t) {
+    stopAck();                        // 正文要开口了，语气词让路
     if (!HANDS && !VOICE_ON) return;
     const seq = ++SPEAK_SEQ;          // 新一轮开口，上一轮的一切作废
     dbg('speak_begin', { seq, chars: spokenPart(t).length });
@@ -1892,6 +1942,7 @@
     REC.onstop = onSeg;
     REC.start(250);
     REC_T0 = Date.now();
+    SPK_T0 = REC_T0;
     setState('listen');
     dbg('seg_start', {});
   }
@@ -2644,6 +2695,7 @@
 
   paintMode();
   paintChat();
+  setTimeout(() => { if (store.k) prewarmVoice(); }, 1500);   // 先热那六句语气词，冷启动也跑
   if (store.k) refreshAcct(); else $('#gate').classList.remove('hide');
   checkFresh();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkFresh(); });
