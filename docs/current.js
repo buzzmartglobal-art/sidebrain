@@ -1,1 +1,1 @@
-window.__SB_CUR="https://interracial-modeling-emerging-clouds.trycloudflare.com";
+window.__SB_CUR="https://entertainment-board-load-interim.trycloudflare.com";
