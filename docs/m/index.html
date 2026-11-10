@@ -176,6 +176,10 @@
     padding:10px 16px;border-radius:12px;font-size:13.5px;opacity:0;transition:.25s;z-index:90;pointer-events:none;
     box-shadow:0 8px 24px rgba(0,0,0,.5);max-width:86vw;text-align:center}
   .toast.on{opacity:1;transform:translate(-50%,0)}
+  .course-top,.course-card,.course-material{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:10px;max-width:100%;overflow-wrap:anywhere}
+  .course-card{display:flex;gap:10px;align-items:center;text-align:left;width:100%}.course-card.lock{opacity:.42}.course-card.current{border-color:var(--accent);box-shadow:0 0 0 1px rgba(91,140,255,.25)}
+  .course-min{width:46px;flex:0 0 46px;color:#9dbaff;font-weight:700}.course-progress{height:6px;background:#252b35;border-radius:9px;overflow:hidden}.course-progress i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .course-material textarea{width:100%;min-height:130px;background:#0f1218;border:1px solid var(--line);border-radius:10px;padding:10px;resize:vertical}.course-q{padding:9px 0;border-top:1px solid var(--line)}
 
   /* 登录 */
   #gate{position:fixed;inset:0;z-index:60;background:radial-gradient(120% 80% at 50% 0%,#1a2030 0%,var(--bg) 58%);
@@ -266,6 +270,10 @@
     <div class="brand"><b id="planHd">训练计划</b></div>
   </header>
   <div class="body" id="planBody"></div>
+</div>
+<div class="sheet" id="courseSheet">
+  <header><button class="hbtn" id="courseBack">←</button><div class="brand"><b id="courseHd">雅思 45 分钟</b></div></header>
+  <div class="body" id="courseBody"></div>
 </div>
 
 <div class="sheet" id="menuSheet">
@@ -975,7 +983,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261110-0940';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
+  const BUILD = '20261110-1410';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1403,7 +1411,7 @@
     const rest = parts.join(' ').trim().slice(0, 480);
     return [first, rest].filter(Boolean);
   }
-  async function ttsFetch(text, quality) {
+  async function ttsFetch(text, quality, voiceOverride) {
     base = await ensureBase();
     const ac = new AbortController();
     const kill = setTimeout(() => ac.abort(), quality === 'high' ? 16000 : 9000);   // 服务端慢就放弃，别拖着整轮对话
@@ -1412,7 +1420,7 @@
         method: 'POST',
         signal: ac.signal,
         headers: { 'content-type': 'application/json', ...(store.k ? { authorization: 'Bearer ' + store.k } : {}) },
-        body: JSON.stringify({ text, voice: VOICE, lang: 'en', quality: quality || '' }),
+        body: JSON.stringify({ text, voice: voiceOverride || VOICE, lang: 'en', quality: quality || '' }),
       });
       if (!r.ok) throw new Error('tts ' + r.status);
       const prov = r.headers.get('x-tts-provider') || '', mdl = r.headers.get('x-tts-model') || '';
@@ -1549,6 +1557,74 @@
   /* ---------- 读书：把电脑里的书一段一段念完，并且记得故事讲到哪 ---------- */
   const BOOK = { id: '', title: '', pos: 0, total: 0, sum: '', last: '', playing: false, seq: 0, rate: 1, head: '', headPart: 0, headChunk: null };
   let TEXTBOOK = false, READ_LAST = '';
+  /* ---------- IELTS 45 分钟 ---------- */
+  const courseSheet = $('#courseSheet'), courseBody = $('#courseBody');
+  let COURSE = null, COURSE_LESSON = null, COURSE_STAGE = '';
+  $('#courseBack').onclick = () => closeSheet(courseSheet);
+  async function openCourse() {
+    openSheet(courseSheet); $('#courseHd').textContent = EN ? 'IELTS · 45 minutes' : '雅思 45 分钟';
+    courseBody.innerHTML = '<div class="hint" style="padding:20px">' + (EN ? 'Loading…' : '读取中…') + '</div>';
+    try { COURSE = await api('/course', null, { method: 'GET' }); COURSE_LESSON = await api('/lesson?day=' + COURSE.progress.day, null, { method: 'GET' }); paintCourse(); }
+    catch (e) { courseBody.innerHTML = '<div class="hint">' + esc(String(e.message || e)) + '</div>'; }
+  }
+  async function courseSpeakLines(lines) {
+    unlockTTS();
+    for (const line of (lines || [])) {
+      const voice = String(line.who || '').toUpperCase() === 'B' ? 'TxGEqnHWrfWFTfGW9XjX' : 'EXAVITQu4vr4xnSDxMaL';
+      const url = await ttsFetch(String(line.text || '').slice(0, 700), 'fast', voice).catch(() => null);
+      if (url) { await playUrl(url, 1); URL.revokeObjectURL(url); }
+    }
+  }
+  function courseDoneStages() {
+    const d = COURSE && COURSE.progress ? COURSE.progress.day : 1;
+    const row = COURSE && COURSE.todayDone ? COURSE.todayDone : null;
+    return row ? row.stages || [] : (COURSE_LESSON && COURSE_LESSON.doneStages || []);
+  }
+  function paintCourse() {
+    const p = COURSE.progress, stages = COURSE_LESSON.stages || [], done = courseDoneStages();
+    const current = stages.find(x => !done.includes(x.key)) || null;
+    COURSE_STAGE = current ? current.key : '';
+    courseBody.innerHTML = '<div class="course-top"><div style="display:flex;justify-content:space-between;gap:8px"><b>' + (EN ? 'Day ' : '第 ') + p.day + (EN ? ' / 60' : ' 天 / 60') + '</b><span>🔥 ' + p.streak + '</span></div>' +
+      '<div class="hint" style="padding:6px 0">' + (EN ? 'Target band ' : '目标分 ') + '<button id="courseBand" class="cchip">' + esc(COURSE.band) + '</button> · ' + p.todayMin + '/45 min</div>' +
+      '<div class="course-progress"><i style="width:' + Math.min(100, p.todayMin / 45 * 100) + '%"></i></div></div>' +
+      (current ? stages.map((s, i) => { const isDone = done.includes(s.key), can = isDone || s.key === current.key; return '<button class="course-card ' + (s.key === current.key ? 'current' : '') + (!can ? ' lock' : '') + '" data-stage="' + s.key + '" ' + (!can ? 'disabled' : '') + '><span class="course-min">' + s.min + ' min</span><span><b>' + esc(EN ? s.title : s.titleZh) + '</b><small style="display:block;color:var(--dim)">' + (isDone ? '✓ ' : '') + esc(s.brief) + '</small></span></button>'; }).join('') :
+        '<div class="course-top"><b>✓ ' + (EN ? 'Done for today' : '今天练完了') + '</b><div class="hint">' + p.todayMin + ' min · 🔥 ' + p.streak + '</div></div>');
+    $('#courseBand').onclick = async () => { const b = prompt(EN ? 'Target band: 6.0 / 6.5 / 7.0' : '目标分：6.0 / 6.5 / 7.0', COURSE.band); if (!b) return; try { await api('/course/band', { band: b }); await openCourse(); } catch (e) { toast(e.message, 2200); } };
+    courseBody.querySelectorAll('.course-card:not(.lock)').forEach(b => b.onclick = () => paintCourseStage(b.dataset.stage));
+  }
+  function courseQuestions(arr) { return (arr || []).map((q,i) => '<div class="course-q"><b>' + (i+1) + '. ' + esc(q.q) + '</b><input class="inp course-answer" data-i="' + i + '" style="width:100%;margin-top:6px;padding:9px;background:#0f1218;border:1px solid var(--line);border-radius:9px" placeholder="' + (EN ? 'Your answer' : '你的答案') + '"><small style="display:block;color:var(--dim);margin-top:5px">' + (q.locate ? (EN ? 'Locate after answering' : '作答后显示定位句') : '') + '</small></div>').join(''); }
+  function paintCourseStage(key) {
+    const m = COURSE_LESSON.material || {}, stage = (COURSE_LESSON.stages || []).find(x => x.key === key); COURSE_STAGE = key;
+    let html = '';
+    if (key === 'warmup') {
+      const w = COURSE_LESSON.warmup || {}, CH = w.chunks || [];
+      const drill = CH.map((c,i) => '<div class="course-q" data-ci="' + i + '">' +
+        '<div style="display:flex;gap:6px;align-items:flex-start"><button class="cchip chunkPlay" data-text="' + esc(c.zh) + '">🔊</button>' +
+        '<div style="flex:1"><b>' + esc(c.zh) + '</b><small style="display:block;color:var(--dim);margin-top:3px">' + esc(c.ask ? (EN ? c.ask.en : c.ask.zh) : '') + '</small>' +
+        '<div class="chunk-rev" style="display:none;margin-top:6px"><code>' + esc(c.en) + '</code><small style="color:var(--dim)"> · box ' + (c.box || 0) + '</small></div></div>' +
+        '<button class="cchip chunkShow">👁</button></div>' +
+        '<div style="display:flex;gap:8px;margin:8px 0 14px 0"><button class="btn chunkOk" data-ci="' + i + '">✓ ' + (EN ? 'said it' : '说出来了') + '</button>' +
+        '<button class="btn chunkNo" data-ci="' + i + '">✗ ' + (EN ? 'missed' : '没说出来') + '</button></div></div>').join('');
+      const sw = (w.swaps || COURSE_LESSON.swaps || []).slice(0,4).map(x => '<div class="course-q"><button class="cchip swapPlay" data-text="' + esc(x.to) + '">🔊</button> ' + esc(x.to) + '<details><summary>' + (EN ? 'Answer' : '答案') + '</summary>' + esc(x.from) + '</details></div>').join('');
+      html = '<h3 style="margin:0 0 8px">' + (EN ? 'Chunk retrieval' : '语块检索') + '</h3><div class="hint" style="padding:0 0 6px">' + (EN ? 'Say it out loud before revealing. Recognition is not production.' : '先开口说，再点开看。认得出来不等于说得出。') + '</div>' + drill +
+        '<h3 style="margin:16px 0 8px">' + (EN ? 'Paraphrase' : '同义替换') + '</h3>' + sw +
+        '<div class="hint" style="padding:2px 0 0">' + (EN ? 'Library: ' : '语块库：已练 ') + ((w.dueCount || 0)) + (EN ? ' due today' : ' 条今天到期') + '</div>';
+    }
+    if (key === 'listen') html = '<button class="btn" id="coursePlay">▶ ' + (EN ? 'Play' : '播放') + '</button>' + courseQuestions(m.listen && m.listen.questions) + '<details><summary>' + (EN ? 'Intensive transcript' : '精听文本') + '</summary>' + (m.listen?.lines || []).map(x => '<p><b>' + esc(x.who) + ':</b> ' + esc(x.text) + '</p>').join('') + '<p>' + (m.listen?.swaps || []).map(x => esc(x.heard + ' ↔ ' + x.written)).join('<br>') + '</p></details>';
+    if (key === 'read') html = '<div style="white-space:pre-wrap">' + esc(m.read?.text || '') + '</div>' + courseQuestions(m.read?.questions);
+    if (key === 'speak') html = '<button class="btn" id="coursePlay">▶ ' + (EN ? 'Play card' : '播放题卡') + '</button><h3>' + esc(m.speak?.card || '') + '</h3><ul>' + (m.speak?.prompts || []).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul><button class="btn primary" id="courseMic">🎙 ' + (EN ? 'Start speaking' : '开始口语') + '</button>';
+    if (key === 'write') html = '<p>' + esc(m.write?.prompt || '') + '</p><textarea id="courseWrite" placeholder="' + (EN ? 'Write sentences or one paragraph…' : '写句子或一个段落…') + '"></textarea>';
+    courseBody.innerHTML = '<button class="cchip" id="courseStages">← ' + (EN ? 'Stages' : '五个阶段') + '</button><div class="course-material"><h2 style="margin-top:0">' + esc(EN ? stage.title : stage.titleZh) + ' · ' + stage.min + ' min</h2>' + html + '</div><button class="btn primary" id="courseDone">' + (EN ? 'Complete this stage' : '完成这一段') + '</button>';
+    $('#courseStages').onclick = paintCourse;
+    courseBody.querySelectorAll('.swapPlay').forEach(b => b.onclick = () => sayAll(b.dataset.text));
+    courseBody.querySelectorAll('.chunkPlay').forEach(b => b.onclick = () => sayAll(b.dataset.text));
+    courseBody.querySelectorAll('.chunkShow').forEach(b => b.onclick = () => { const q = b.closest('.course-q'); const r = q.querySelector('.chunk-rev'); r.style.display = r.style.display === 'none' ? 'block' : 'none'; });
+    courseBody.querySelectorAll('.chunkOk,.chunkNo').forEach(b => b.onclick = () => { const ok = b.classList.contains('chunkOk'); const i = b.dataset.ci; courseBody.querySelectorAll('.chunkOk,.chunkNo').forEach(x => { if (x.dataset.ci === i) x.classList.remove('primary'); }); b.classList.add('primary'); const q = courseBody.querySelector('[data-ci="' + i + '"].course-q'); if (q) q.querySelector('.chunk-rev').style.display = 'block'; if (ok) sayAll(((COURSE_LESSON.warmup || {}).chunks || [])[Number(i)]?.en || ''); });
+    if ($('#coursePlay')) $('#coursePlay').onclick = () => key === 'listen' ? courseSpeakLines(m.listen?.lines || []) : sayAll([m.speak?.card, ...(m.speak?.prompts || [])].join('. '));
+    if ($('#courseMic')) $('#courseMic').onclick = () => { if (!coachOn()) setMode('coach'); toggleHands(); toast(EN ? 'Microphone on for speaking' : '只在口语环节开麦', 1800); };
+    $('#courseDone').onclick = async () => { const qs = key === 'listen' ? m.listen?.questions : key === 'read' ? m.read?.questions : []; const vals = [...courseBody.querySelectorAll('.course-answer')]; const answers = vals.map((el,i) => ({ skill:key,type:qs[i]?.type,my:el.value,ans:qs[i]?.answer,correct:String(el.value).trim().toLowerCase()===String(qs[i]?.answer||'').trim().toLowerCase() })); const note = $('#courseWrite') ? $('#courseWrite').value : ''; const chunks = [...courseBody.querySelectorAll('.chunkOk,.chunkNo')].map(b => { const i = Number(b.dataset.ci); const c = ((COURSE_LESSON.warmup || {}).chunks || [])[i] || {}; return { en: c.en, correct: b.classList.contains('chunkOk') }; }).filter(x => x.en); try { await api('/lesson/done',{day:COURSE.progress.day,stage:key,minutes:stage.min,note,answers,chunks}); if (key==='speak' && HANDS) toggleHands(); await openCourse(); courseBody.scrollTop=0; } catch(e){ toast(e.message,2400); } };
+  }
+
   /* ---------- 训练计划：自测定档 -> 今日课 ---------- */
   let PLAN = null, PLAN_TODAY = null, PLAN_ANS = {};
   const planSheet = $('#planSheet'), planBody = $('#planBody');
@@ -2082,7 +2158,9 @@
     if (blob.size < 1500) { if (VAD_ON) setState('listen'); return; }
     try {
       const b64 = await blobB64(blob);
-      const r = await api('/asr', { audio: b64, mime: blob.type || 'audio/mp4', lang: 'en' }, { method: 'POST' });
+      const cHint = COURSE_LESSON ? ([...((COURSE_LESSON.warmup || {}).chunks || []).map(x => x.en), ...(COURSE_LESSON.chunks || []).map(x => x.en), ...(COURSE_LESSON.swaps || []).map(x => x.to)].join(', ').slice(0, 200)) : '';
+      const cCtx = CHAT.filter(x => x.role === 'assistant').slice(-2).map(x => String(x.text || '').slice(0, 80));
+      const r = await api('/asr', { audio: b64, mime: blob.type || 'audio/mp4', lang: 'en', hint: cHint, ctx: cCtx }, { method: 'POST' });
       const txt = String(r.text || '').trim();
       dbg('asr', { prov: r.provider, ms: r.ms, chars: txt.length, bytes: blob.size });
       dbg('asr_rtt', { ms: TURN.sil ? Date.now() - TURN.sil : -1, chars: txt.length });
@@ -2567,6 +2645,7 @@
         (PLAN && PLAN.level ? esc(PLAN.level + ' · ' + (PLAN.day ? PLAN.day.unitTitle : '') + ' · ' + (EN ? 'day ' : '第 ') + (PLAN.day ? PLAN.day.n : 1) + (EN ? '' : ' 课'))
           : (EN ? 'Placement test, then 12 lessons with the chunks and tasks that fit your level.' : '先测一下你的水平，再给 12 节课：语块、任务、跟我读，一课一课来')) +
         '</span></div><div class="k">›</div></div>' +
+      '<div class="rowitem" id="mCourse"><div class="t"><b>🎯 ' + (EN ? 'IELTS · 45 minutes' : '雅思 45 分钟') + '</b><span>' + (EN ? 'Daily listening, reading, speaking and writing in a fixed 45-minute lesson.' : '每天固定 45 分钟：听、读、口语、写作。') + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mFilm"><div class="t"><b>🎬 ' + (EN ? 'Watch & learn' : '看片课') + '</b><span>' + (FILM && FILM.pending ? (EN ? FILM.pending + ' lines captured from the video you are watching' : '已经从你看的片子里抓到 ' + FILM.pending + ' 句') : (EN ? 'Turn a film you are watching into a lesson' : '把正在看的片子变成一课')) + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mText"><div class="t"><b>📚 ' + (EN ? 'English textbook from my books' : '用我的书练英语') + '</b><span>' +
         (TEXTBOOK ? esc(BOOK.title) + ' · ' + (EN ? 'lesson running' : '正在上课') :
@@ -2648,6 +2727,7 @@
     $('#mBook').onclick = () => { primeAudio(); closeSheet(menuSheet); if (bookActive()) { resumeBook(); } else { openBooks('read'); } };
     $('#mText').onclick = () => { unlockTTS(); primeAudio(); closeSheet(menuSheet); openBooks('text'); };
     $('#mPlan').onclick = () => { unlockTTS(); closeSheet(menuSheet); openPlan(); };
+    $('#mCourse').onclick = () => { unlockTTS(); closeSheet(menuSheet); openCourse(); };
     if ($('#mFilm')) $('#mFilm').onclick = () => { unlockTTS(); closeSheet(menuSheet); openFilm(); };
     $('#mNotes').onclick = () => { closeSheet(menuSheet); openSheet(sheet); noteList(''); };
     $('#mShareAddr').onclick = async () => {
