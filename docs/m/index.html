@@ -673,22 +673,15 @@
   /* ---------- 发送 ---------- */
   let busy = false;
   let SILENT_NEXT = false;
+  let TURN = { sil: 0, segT0: 0 };   // sil = 判定你说完的时刻
+  let M2E_TOLD = false, ACKED = false, PENDING = [];
   async function send() {
     const text = ta.value.trim();
     if (busy) return;
     if (!text && !ATT.image && !ATT.files.length) return;
-    if (HANDS) {
-      // 打断要分真假：一声「嗯」是 backchannel（顶尖产品也不打断），
-      // 说满 3 个词或讲了 0.4 秒以上才是真的插话。
-      const words = text.split(/\s+/).filter(Boolean).length;
-      const talkMs = SPK_T0 ? Date.now() - SPK_T0 : 0;
-      const cut = words >= 3 || talkMs >= 400;
-      dbg('bargein', { words, ms: talkMs, cut });
-      if (cut) stopSpeaking();
-    }
     SPK_T0 = 0;
     busy = true; $('#send').disabled = true;
-    playAck();                        // 它还没憋出正文，先哼一声填住静默
+    if (!ACKED) playAck();            // 它还没憋出正文，先哼一声填住静默（语音模式在 stopSeg 已经响过）
     const att = { image: ATT.image, files: ATT.files.slice() };
     const shown = text || (att.image ? '📷 ' + T.img : '📄 ' + att.files.map(f => f.name).join(', '));
     const msg = { role: 'user', text: shown, att: { image: att.image, files: att.files.map(f => ({ name: f.name })) } };
@@ -775,6 +768,10 @@
       if (HANDS) setTimeout(startListen, 1200);
     }
     busy = false; $('#send').disabled = false;
+    if (PENDING.length && !busy) {
+      const merged = PENDING.join(' ').trim(); PENDING = [];
+      if (merged) { ta.value = merged; setTimeout(() => { try { send(); } catch (_) {} }, 60); }
+    }
     saveChat();
     feed.scrollTop = feed.scrollHeight;
   }
@@ -1041,7 +1038,7 @@
   let LEVEL = 'B1';
   try { if (['A2', 'B1', 'B2'].includes(store.lvl)) LEVEL = store.lvl; } catch (_) {}
   let READ_TARGET = '';
-  const lvlLine = () => 'My English level is about ' + LEVEL + ' - match your vocabulary and sentence length to it.';
+  const lvlLine = () => 'My English level is about ' + LEVEL + ' - match your vocabulary and sentence length to it. Keep every spoken reply under 25 words: one or two short sentences, then exactly one open question that needs more than a sentence to answer. Never stack multiple questions.';
   // 跟读打分：字级重合率，够用来让人看到自己漏了哪个词
   function readScore(said, target) {
     const norm = t => String(t || '').toLowerCase().replace(/[^a-z0-9' ]/g, ' ').split(/\s+/).filter(Boolean);
@@ -1065,7 +1062,7 @@
   if (!COACH_MODES[CSUB]) CSUB = 'natural';
   const getPersona = () => {
     if (coachOn()) return coachSys() + '\n' + lvlLine();
-    return "You are George's English coach and conversation partner. Default to replying in English (even if he uses Chinese, respond in English and gently steer him back to English). Keep each response to 1-3 colloquial sentences and always end with a question to keep the conversation going. If his English is unclear, provide a 'Better: <more natural expression>' with a brief Chinese note (max 6 words), then continue the conversation. Never introduce yourself as an 'assistant', 'web assistant', or 'sidebar assistant'. If asked who you are, answer that you are his English coach.";
+    return "You are George's English coach and conversation partner. Default to replying in English (even if he uses Chinese, respond in English and gently steer him back to English). Keep each response to 1-3 colloquial sentences and always end with a question to keep the conversation going. If his English is unclear, provide a 'Better: <more natural expression>' with a brief Chinese note (max 6 words), then continue the conversation. Never introduce yourself as an 'assistant', 'web assistant', or 'sidebar assistant'. If asked who you are, answer that you are his English coach. Keep every spoken reply under 25 words: one or two short sentences, then exactly one open question that needs more than a sentence to answer. Never stack multiple questions.";
   };
 
   const coachSys = () => (COACH_MODES[CSUB] || COACH_MODES.natural).sys;
@@ -1269,6 +1266,7 @@
       const a = new Audio(ACK_URLS[Math.floor(Math.random() * ACK_URLS.length)]);
       a.volume = 0.55;                       // 只是「我在听」，不许盖过正文
       a.onended = () => { try { a.src = ''; } catch (_) {} if (ACK_AUD === a) ACK_AUD = null; };
+      a.onplaying = () => { if (TURN.sil) dbg('m2e', { kind: 'ack', ms: Date.now() - TURN.sil }); };
       ACK_AUD = a;
       const pr = a.play();
       if (pr && pr.catch) pr.catch(() => { if (ACK_AUD === a) ACK_AUD = null; });
@@ -1348,14 +1346,15 @@
       const fin = () => {
         if (done) return;
         done = true; clearTimeout(guard); clearTimeout(alive); clearInterval(watch);
-        try { AUD.onended = AUD.onerror = AUD.ontimeupdate = null; } catch (_) {}
+        try { AUD.onended = AUD.onerror = AUD.ontimeupdate = AUD.onplaying = null; } catch (_) {}
         res();
       };
       if (seq && seq !== SPEAK_SEQ) { fin(); return; }
       try {
         AUD.onended = fin;
         AUD.onerror = fin;
-        AUD.ontimeupdate = () => { if (AUD.currentTime > 0.05) clearTimeout(alive); };
+        AUD.onplaying = () => { if (TURN.sil && !M2E_TOLD) { M2E_TOLD = true; dbg('m2e', { kind: 'speech', ms: Date.now() - TURN.sil }); } };
+        AUD.ontimeupdate =() => { if (AUD.currentTime > 0.05) clearTimeout(alive); };
         watch = setInterval(() => { if (seq && seq !== SPEAK_SEQ) { try { AUD.pause(); } catch (_) {} fin(); } }, 150);
         AUD.muted = false;
         AUD.src = url;
@@ -1850,6 +1849,7 @@
     if (document.visibilityState !== 'visible') return;
     const st = (document.getElementById('hstate') || {}).className;
     if (st === 'think' || st === 'speak') return;   // 想的时候、念的时候都不许开麦：念的时候开麦等于让它听自己
+    if (HANDS && MIC_CTX && MIC_CTX.state !== 'running') { micDead(); return; }
     try { startListen(true); } catch (_) {}
   }, 1500);
   // 念的时候点一下状态条：它闭嘴，麦克风立刻开 —— 抢话不用找按钮
@@ -1871,6 +1871,14 @@
     (/iPhone|iPad|iPod/.test(navigator.userAgent) || /[?&]asr=1/.test(location.search));
   let MIC_STREAM = null, MIC_CTX = null, MIC_AN = null, MIC_BUF = null, MIC_LOOP = null;
   let VAD_ON = false, REC = null, REC_CHUNKS = [], SIL_MS = 0, HEARD_MS = 0, NOISE = 0.014, REC_T0 = 0, VAD_BUSY = false;
+  let INTERRUPT_MS = 0, MIC_ZERO = 0, MIC_DEAD_AT = 0;
+  function micDead() {
+    if (Date.now() - MIC_DEAD_AT < 1500) return;
+    MIC_DEAD_AT = Date.now();
+    dbg('mic_reopen', { ctx: MIC_CTX ? MIC_CTX.state : 'none' });
+    try { closeMic(); } catch (_) {}
+    setTimeout(() => { if (HANDS) openMic().then(() => micListen()).catch(() => {}); }, 300);
+  }
   function micLevel() {
     if (!MIC_AN) return 0;
     MIC_AN.getByteTimeDomainData(MIC_BUF);
@@ -1889,6 +1897,9 @@
     src.connect(MIC_AN);
     MIC_BUF = new Uint8Array(MIC_AN.fftSize);
     try { if (MIC_CTX.state === 'suspended') await MIC_CTX.resume(); } catch (_) {}
+    const tr = stream.getAudioTracks()[0];
+    if (tr) { tr.onended = micDead; tr.onmute = micDead; }
+    MIC_CTX.onstatechange = () => { if (MIC_CTX && MIC_CTX.state !== 'running') micDead(); };
     dbg('mic_open', { tracks: stream.getAudioTracks().length });
     return true;
   }
@@ -1897,6 +1908,7 @@
     if (MIC_LOOP) { clearTimeout(MIC_LOOP); MIC_LOOP = null; }
     try { if (REC && REC.state !== 'inactive') REC.stop(); } catch (_) {}
     REC = null; REC_CHUNKS = [];
+    INTERRUPT_MS = 0; MIC_ZERO = 0;
     try { MIC_STREAM && MIC_STREAM.getTracks().forEach(t => t.stop()); } catch (_) {}
     try { MIC_CTX && MIC_CTX.close(); } catch (_) {}
     MIC_STREAM = null; MIC_AN = null; MIC_CTX = null;
@@ -1914,8 +1926,16 @@
   function micStep() {
     if (!VAD_ON) { MIC_LOOP = null; return; }
     const lvl = micLevel();
-    // 它在说话、或者在等回复的时候，麦克风只听不记
-    if (state() !== 'speak') {
+    // 麦克风被系统掐掉（电平长期纯零）兜底：60 秒 = 600 × 110ms。
+    // 门槛必须放这么高：安静的房间里正常对话也会有几十秒没人出声，6.6 秒就把麦克风重开一次会打断录音。
+    if (lvl < 0.001 && !REC && !busy) { MIC_ZERO += 1; if (MIC_ZERO >= 600) { MIC_ZERO = 0; micDead(); return; } } else MIC_ZERO = 0;
+    // 它在说话时：只读音量判打断，不录音
+    const speaking = (state() === 'speak');
+    if (speaking) {
+      const loud = lvl > Math.max(0.09, NOISE * 3.5);
+      INTERRUPT_MS = loud ? INTERRUPT_MS + 110 : 0;
+      if (INTERRUPT_MS >= 300) { INTERRUPT_MS = 0; dbg('bargein', { ms: 300, lvl: Math.round(lvl * 1000) / 1000 }); stopSpeaking(); }
+    } else {
       const loud = lvl > Math.max(0.02, NOISE * 2.0);
       if (REC) {
         if (loud) SIL_MS = 0; else SIL_MS += 110;
@@ -1942,15 +1962,19 @@
     REC.onstop = onSeg;
     REC.start(250);
     REC_T0 = Date.now();
-    SPK_T0 = REC_T0;
+    TURN.segT0 = REC_T0;
+    M2E_TOLD = false; ACKED = false;
+    SPK_T0 = Date.now();
     setState('listen');
     dbg('seg_start', {});
   }
   function stopSeg() {
+    TURN.sil = Date.now();
     if (!REC) return;
     try { REC.stop(); } catch (_) {}
     REC = null;
     setState('think');
+    if (Date.now() - TURN.segT0 >= 600) { playAck(); ACKED = true; }
   }
   function blobB64(blob) {
     return new Promise((res, rej) => {
@@ -1969,7 +1993,9 @@
       const r = await api('/asr', { audio: b64, mime: blob.type || 'audio/mp4', lang: 'en' }, { method: 'POST' });
       const txt = String(r.text || '').trim();
       dbg('asr', { prov: r.provider, ms: r.ms, chars: txt.length, bytes: blob.size });
+      dbg('asr_rtt', { ms: TURN.sil ? Date.now() - TURN.sil : -1, chars: txt.length });
       if (!txt) { if (VAD_ON) setState('listen'); return; }
+      if (busy) { PENDING.push(txt); dbg('pending_q', { n: PENDING.length }); if (VAD_ON) setState('listen'); return; }
       ta.value = txt; autoGrow();
       send();
     } catch (e) {
