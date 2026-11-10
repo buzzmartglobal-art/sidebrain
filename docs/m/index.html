@@ -983,7 +983,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261110-1410';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
+  const BUILD = '20261110-1435';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -996,7 +996,7 @@
     try {
       const r = await fetch(location.pathname + '?fresh=' + Date.now(), { cache: 'no-store' });
       const t = await r.text();
-      const m = /const BUILD = '([^']+)'/.exec(t);
+      const m = /const BUILD = '20261110-1435']+)'/.exec(t);
       if (m && m[1] && m[1] !== BUILD) showUpdateBar();
     } catch (_) {}
   }
@@ -2158,7 +2158,11 @@
     if (blob.size < 1500) { if (VAD_ON) setState('listen'); return; }
     try {
       const b64 = await blobB64(blob);
-      const cHint = COURSE_LESSON ? ([...((COURSE_LESSON.warmup || {}).chunks || []).map(x => x.en), ...(COURSE_LESSON.chunks || []).map(x => x.en), ...(COURSE_LESSON.swaps || []).map(x => x.to)].join(', ').slice(0, 200)) : '';
+      // hint 只放「这句话里很可能出现的词」。实测：把当天语块硬塞进去反而更差
+      //（无关词会把 Whisper 往别的方向带，WER 7.5%→9.7%），所以这里只取教练刚问的那句 + 我上一句。
+      const lastCoach = CHAT.filter(x => x.role === 'assistant').slice(-1)[0];
+      const lastMine = CHAT.filter(x => x.role === 'user').slice(-1)[0];
+      const cHint = [String(lastCoach && lastCoach.text || '').slice(0, 120), String(lastMine && lastMine.text || '').slice(0, 60)].join(' ').replace(/\s+/g, ' ').trim().slice(0, 200);
       const cCtx = CHAT.filter(x => x.role === 'assistant').slice(-2).map(x => String(x.text || '').slice(0, 80));
       const r = await api('/asr', { audio: b64, mime: blob.type || 'audio/mp4', lang: 'en', hint: cHint, ctx: cCtx }, { method: 'POST' });
       const txt = String(r.text || '').trim();
