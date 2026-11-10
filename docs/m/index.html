@@ -433,8 +433,12 @@
         if (h.ok) return rememberBase(location.origin);
       } catch (_) {}
       // 不是的话说明这是个静态页（GitHub Pages），按 endpoint.json 找当前隧道
+      // 最快的路排最前：tailnet 直连（WireGuard，/health 实测 31–48ms；cloudflared 边缘 136–2100ms）。
+      // 手机没开 Tailscale 时这条会失败并自动往下回退。
+      const TS_BASE = 'https://coodi-mac-mini.tail5bebf0.ts.net:8444';
       const candidates = [];
       const push = u => { u = String(u || '').replace(/\/+$/, ''); if (u && !candidates.includes(u)) candidates.push(u); };
+      push(TS_BASE);
       for (const f of ['endpoint.json', '../endpoint.json']) {
         try {
           const j = await (await fetch(f + '?t=' + Date.now(), { cache: 'no-store' })).json();
