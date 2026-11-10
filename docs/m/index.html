@@ -375,7 +375,7 @@
   }
 
   /* ---------- 遥测：?dbg=1 时把自己的状态报给服务器（真机出问题时有据可查） ---------- */
-  const DBG_ON = /[?&]dbg=1/.test(location.search) || (() => { try { return localStorage.getItem('sb_dbg') === '1'; } catch (_) { return false; } })();
+  const DBG_ON = /[?&]dbg=0/.test(location.search) ? false : (() => { try { return localStorage.getItem('sb_dbg') !== '0'; } catch (_) { return true; } })();
   let DBG_Q = [];
   const dbg = (ev, o) => { if (!DBG_ON) return; try { DBG_Q.push({ ev, ...(o || {}) }); flushDbg(); } catch (_) {} };
   let dbgTimer = 0;
@@ -679,6 +679,89 @@
   let SILENT_NEXT = false;
   let TURN = { sil: 0, segT0: 0 };   // sil = 判定你说完的时刻
   let M2E_TOLD = false, ACKED = false, PENDING = [];
+  function streamSpeaker() {
+    if (!HANDS && !VOICE_ON) return null;
+    stopAck();
+    const seq = ++SPEAK_SEQ, rate = LEVEL === 'A2' ? 0.95 : LEVEL === 'B2' ? 1.08 : 1.03;
+    const jobs = [], urls = []; let ended = false, wake = null, firstMs = 0, parts = 0;
+    setState('speak');
+    const signal = () => { if (wake) { wake(); wake = null; } };
+    const push = text => {
+      const part = plainSay(text).replace(/\s+/g, ' ').trim();
+      if (!part) return;
+      const t0 = Date.now(), idx = parts++;
+      jobs.push(ttsFetch(part, 'fast').then(url => {
+        if (idx === 0) firstMs = Date.now() - t0;
+        urls.push(url);
+        if (seq !== SPEAK_SEQ) { try { URL.revokeObjectURL(url); } catch (_) {} return null; }
+        return url;
+      }).catch(() => null));
+      signal();
+    };
+    const done = () => { ended = true; signal(); };
+    const play = (async () => {
+      const t0 = Date.now(); let i = 0;
+      while (!ended || i < jobs.length) {
+        if (seq !== SPEAK_SEQ) break;
+        if (i >= jobs.length) { await new Promise(r => { wake = r; }); continue; }
+        const url = await jobs[i++];
+        if (!url || seq !== SPEAK_SEQ) break;
+        await playUrl(url, rate, seq);
+        try { URL.revokeObjectURL(url); } catch (_) {}
+      }
+      for (const url of urls) try { URL.revokeObjectURL(url); } catch (_) {}
+      dbg('tts', { parts, firstMs, totalMs: Date.now() - t0 });
+      if (seq !== SPEAK_SEQ) return;
+      setState('idle');
+      if (HANDS) setTimeout(startListen, 220);
+    })();
+    return { seq, push, done, play };
+  }
+  async function streamChat(payload) {
+    base = await ensureBase();
+    const r = await fetch(base + '/v1/chat', {
+      method: 'POST', headers: { 'content-type': 'application/json', ...(store.k ? { authorization: 'Bearer ' + store.k } : {}) },
+      body: JSON.stringify({ ...payload, stream: true }),
+    });
+    if (!r.ok || !/^text\/event-stream/i.test(r.headers.get('content-type') || '')) throw new Error('stream unavailable');
+    const speaker = streamSpeaker(), rd = r.body.getReader(), dec = new TextDecoder();
+    let wire = '', text = '', filtered = '', used = 0, meta = { channel: '', ms: 0 }, got = false;
+    const cut = final => {
+      filtered = sayableText(text);
+      let rest = filtered.slice(used), end = 0;
+      while (rest) {
+        const min = used === 0 ? 6 : 12;
+        const m = new RegExp('^[\\s\\S]{' + min + ',}?[.!?…;](?=\\s|$)').exec(rest);
+        if (m) end = m[0].length;
+        else if (rest.length > 160) end = 160;
+        else if (final && rest.trim()) end = rest.length;
+        else break;
+        const part = rest.slice(0, end).trim(); if (speaker && part) speaker.push(part);
+        used += end; rest = filtered.slice(used); end = 0;
+      }
+    };
+    try {
+      while (true) {
+        const { value, done } = await rd.read(); wire += dec.decode(value || new Uint8Array(), { stream: !done });
+        const events = wire.split(/\r?\n\r?\n/); wire = events.pop() || '';
+        for (const ev of events) {
+          const line = ev.split(/\r?\n/).find(x => /^data:/.test(x)); if (!line) continue;
+          let j; try { j = JSON.parse(line.replace(/^data:\s*/, '')); } catch (_) { continue; }
+          if (j.d) { got = true; text += j.d; cut(false); }
+          if (j.err) throw new Error(j.err);
+          if (j.done) meta = { channel: j.ch || '', ms: j.ms || 0 };
+        }
+        if (done) break;
+      }
+    } catch (e) {
+      if (speaker) speaker.done();
+      e.streamStarted = got;
+      throw e;
+    }
+    cut(true); if (speaker) speaker.done();
+    if (!got || !text.trim()) throw new Error('empty stream');
+    return { text, channel: meta.channel, ms: meta.ms, speaker };
+  }
   async function send() {
     const text = ta.value.trim();
     if (busy) return;
@@ -748,7 +831,9 @@
     if (lastMsg && !text) lastMsg.content = (att.image ? '[图片] ' : '') + (att.files.map(f => '[文件] ' + f.name).join(' ') || '看图');
 
     try {
-      const r = await api('/v1/chat', payload);
+      let r, streamed = false;
+      try { r = await streamChat(payload); streamed = true; }
+      catch (e) { if (e.streamStarted) throw e; stopSpeaking(); r = await api('/v1/chat', payload); }
       wait.remove();
       CHAT.push({ role: 'assistant', text: r.text, channel: r.channel, ms: r.ms, saved: r.saved, kind: r.kind });
       dbg('reply', { ch: r.channel, ms: r.ms, len: String(r.text || '').length, csub: CSUB });
@@ -757,7 +842,7 @@
       if (coachOn()) { bumpTurn(); collectFixes(r.text); }
       feed.appendChild(w2);
       if (CSUB === 'read') READ_TARGET = String(r.text || '').replace(/^(Better|Corrections|Rewritten)[^\n]*\n?/gim, '').split(/\n/).map(x => x.trim()).filter(x => /[a-z]/i.test(x))[0] || '';
-      try { speakOut(r.text); } catch (_) { setTimeout(startListen, 300); }
+      if (!streamed) try { speakOut(r.text); } catch (_) { setTimeout(startListen, 300); }
       if (r.saved) toast('🗒 ' + T.saved, 1500);
     } catch (e) {
       wait.remove();
@@ -890,7 +975,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261105-2142';
+  const BUILD = '20261110-0940';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1414,18 +1499,21 @@
     u.onerror = () => onEnd && onEnd();
     try { TTS.speak(u); } catch (_) { onEnd && onEnd(); }
   }
+  function sayableLine(line, whole) {
+    const l = String(line || '').trim();
+    if (!l || /^better\s*:/i.test(l)) return false;
+    const cjk = (l.match(/[\u4e00-\u9fa5]/g) || []).length;
+    if (cjk > 6 && cjk / l.length > 0.3) return false;   // 中文注释不念
+    if (/^(topic|plan)\s*:/i.test(l) && String(whole || '').length > 400) return false;
+    return true;
+  }
+  function sayableText(t) {
+    return String(t || '').split(/\n+/).filter(line => sayableLine(line, t)).join(' ');
+  }
   // 只念要紧的那一句（上限 200 字，尽量收在句号上）——念完你才好开口，聊天才有来回
   function spokenPart(t) {
     // Better: 那行和中文说明是给你看的，不是念的 —— 混在英文里念出来很怪
-    const kept = String(t || '').split(/\n+/).filter(line => {
-      const l = line.trim();
-      if (!l) return false;
-      if (/^better\s*:/i.test(l)) return false;
-      const cjk = (l.match(/[\u4e00-\u9fa5]/g) || []).length;
-      if (cjk > 6 && cjk / l.length > 0.3) return false;   // 中文注释不念
-      if (/^(topic|plan)\s*:/i.test(l) && t.length > 400) return false;
-      return true;
-    }).join(' ');
+    const kept = sayableText(t);
     const s = plainSay(kept).replace(/\s+/g, ' ').trim();
     // 念多长：聊天一句话就够（170）；读书时念整段（900）；讲故事允许一整段（420）
     const cap = (typeof bookActive === 'function' && bookActive()) ? 900 : 200;
