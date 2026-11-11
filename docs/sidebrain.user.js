@@ -2,7 +2,7 @@
 // @name         Safari AI Sidebar（自用）
 // @description  网页右侧 Sidebrain：连接 Sidebrain 服务自动选模型，也保留自带 key / Ollama 高级通道
 // @namespace    cola.local
-// @version      1.5.0
+// @version      1.5.1
 // @edition      free
 // @match        *://*/*
 // @grant        GM.xmlHttpRequest
@@ -90,6 +90,31 @@
   let MODEL_CHOICE = 'auto-b';
   let busy = false;
   const history = []; // {role, content}
+
+  function safeHTML(el, html, position) {
+    if (position === 'beforeend') {
+      const holder = document.createElement('div');
+      safeHTML(holder, html);
+      while (holder.firstChild) el.appendChild(holder.firstChild);
+      return;
+    }
+    try {
+      el.innerHTML = html;
+      return;
+    } catch (_) {}
+    try {
+      const policy = trustedTypes.createPolicy('sidebrain-fallback', { createHTML: s => s });
+      el.innerHTML = policy.createHTML(html);
+      return;
+    } catch (_) {}
+    try {
+      el.setHTMLUnsafe(html);
+    } catch (_) {
+      // Outlook restricts policy names and also applies TrustedHTML enforcement to setHTMLUnsafe.
+      const policy = trustedTypes.createPolicy('default', { createHTML: s => s });
+      el.setHTMLUnsafe(policy.createHTML(html));
+    }
+  }
 
   // ---------- 路由：任务 → 模型 ----------
   const HARD = /(代码|重构|报错|异常|堆栈|算法|证明|推导|架构|设计模式|调试|性能|复杂度|正则|SQL|debug|refactor|stack ?trace|algorithm|prove|architect)/i;
@@ -393,9 +418,9 @@
     const st = $('acct-state'); if (!st) return;
     const mail = $('acct-mail-row'), go = $('acct-go'), sub = $('acct-sub-row'), out = $('acct-out');
     if (ACCT && ACCT.plan === 'invalid') {
-      st.innerHTML = LANG === 'zh'
+      safeHTML(st,  LANG === 'zh'
         ? '这台设备的登录失效了。<br><span style="opacity:.65">填回原来的邮箱就能接上，试用天数不变。</span>'
-        : 'Sign-in on this device expired.<br><span style="opacity:.65">Re-enter the same email to reconnect — trial days are kept.</span>';
+        : 'Sign-in on this device expired.<br><span style="opacity:.65">Re-enter the same email to reconnect — trial days are kept.</span>');
       if (mail) mail.style.display = 'flex';
       if (go) { go.style.display = 'block'; go.textContent = LANG === 'zh' ? '用邮箱重新连接' : 'Reconnect with email'; }
       if (sub) sub.style.display = 'none';
@@ -409,7 +434,7 @@
         : ACCT.plan === 'trial'
           ? (zh ? `免费试用中 · 还剩 ${ACCT.daysLeft} 天 · ${ACCT.email}` : `Free trial · ${ACCT.daysLeft} days left · ${ACCT.email}`)
           : (zh ? `试用已结束 · ${ACCT.email}` : `Trial ended · ${ACCT.email}`);
-      st.innerHTML = text + (zh ? `<br><span style="opacity:.65">今天用了 ${ACCT.usedToday || 0} 次</span>` : `<br><span style="opacity:.65">${ACCT.usedToday || 0} today</span>`);
+      safeHTML(st,  text + (zh ? `<br><span style="opacity:.65">今天用了 ${ACCT.usedToday || 0} 次</span>` : `<br><span style="opacity:.65">${ACCT.usedToday || 0} today</span>`));
       if (mail) mail.style.display = 'none';
       if (go) go.style.display = 'none';
       if (sub) sub.style.display = ACCT.plan === 'active' ? 'none' : 'flex';
@@ -782,7 +807,7 @@
   const root = host.attachShadow({ mode: 'open' });
   (document.documentElement || document.body).appendChild(host);
 
-  root.innerHTML = `
+  safeHTML(root,  `
 <style>
   :host, * { box-sizing: border-box; }
   .wrap { position: fixed; top: 0; right: 0; bottom: 0; display: flex; font: 13px/1.6 -apple-system, "SF Pro Text", "PingFang SC", sans-serif; pointer-events: none; }
@@ -1119,7 +1144,7 @@
     </svg>
     <span class="dot"></span>
   </button>
-</div>`;
+</div>`);
 
 
   // ---------- 双语：跟着浏览器语言走（zh 中文，其它英文） ----------
@@ -1305,7 +1330,7 @@
   function bubble(role, text, tag) {
     const d = document.createElement('div');
     d.className = `m ${role}`;
-    d.innerHTML = role === 'a' ? md(text) : esc(text);
+    safeHTML(d,  role === 'a' ? md(text) : esc(text));
     if (tag) {
       const t = document.createElement('div');
       t.className = 'tag';
@@ -1494,12 +1519,12 @@
       .sort((a, b) => b.n - a.n)
       .slice(0, 12);
     if (!rows.length) {
-      box.innerHTML = '<span style="opacity:.6">还没有反馈。点回答下面的 👍/👎，这里会显示每条通道在你手里得分。</span>';
+      safeHTML(box,  '<span style="opacity:.6">还没有反馈。点回答下面的 👍/👎，这里会显示每条通道在你手里得分。</span>');
       return;
     }
-    box.innerHTML = rows.map(r =>
+    safeHTML(box,  rows.map(r =>
       `${r.kind} · ${r.ch}　👍${r.up} 👎${r.n - r.up}　得分 ${r.score.toFixed(2)}`
-    ).join('<br>');
+    ).join('<br>'));
   }
 
   function sendFeedback(meta) {
@@ -1676,7 +1701,7 @@
     if (!selbub) {
       selbub = document.createElement('div');
       selbub.className = 'selbub';
-      selbub.innerHTML = '<b>✦</b> 存进笔记';
+      safeHTML(selbub,  '<b>✦</b> 存进笔记');
       selbub.addEventListener('touchstart', e => { e.preventDefault(); saveSelection(); }, { passive: false });
       selbub.addEventListener('click', e => { e.preventDefault(); saveSelection(); });
       root.appendChild(selbub);
@@ -1760,7 +1785,7 @@
     }, { passive: true });
   }
   $('close').onclick = closePanel;
-  $('clear').onclick = () => { history.length = 0; msgs.innerHTML = ''; };
+  $('clear').onclick = () => { history.length = 0; safeHTML(msgs,  ''); };
 
   $('gear').onclick = () => {
     $('settings').classList.toggle('on');
@@ -1874,11 +1899,11 @@
   function showAck(which, box) {
     const el = $('ack');
     el.style.display = 'block';
-    el.innerHTML = `你正在开启「${which === 'chatgpt' ? 'ChatGPT' : 'Claude'} 订阅额度」通道。<br>` +
+    safeHTML(el,  `你正在开启「${which === 'chatgpt' ? 'ChatGPT' : 'Claude'} 订阅额度」通道。<br>` +
       `本工具只调用你本机已登录的官方命令行工具，不保存任何凭证；额度怎么用、是否符合你与模型商的协议，由你自己判断并承担。<br>` +
       `<span style="opacity:.7">模型商可能随时关闭这类用法，届时会自动改用你的 API key 或本地模型。</span><br><br>` +
       `<button class="send" id="ack-yes" style="padding:5px 10px;font-size:12px">我了解，自己承担</button> ` +
-      `<button class="send" id="ack-no" style="padding:5px 10px;font-size:12px;background:#3a4048">先算了</button>`;
+      `<button class="send" id="ack-no" style="padding:5px 10px;font-size:12px;background:#3a4048">先算了</button>`);
     $('ack-yes').onclick = () => {
       CFG.subAck = Object.assign({}, CFG.subAck, { [which]: true });
       GM.setValue('cfg', CFG);
@@ -1903,13 +1928,13 @@
     const st2 = st || TRIAL;
     if (!st2) { hint.textContent = '试用状态读不到（本地服务没起来？）'; return; }
     if (st2.state === 'licensed') {
-      hint.innerHTML = `已激活 ✓ ${memEsc(st2.key || '')}` + (st2.licensedAt ? ` · ${memDate(st2.licensedAt)}` : '');
+      safeHTML(hint,  `已激活 ✓ ${memEsc(st2.key || '')}` + (st2.licensedAt ? ` · ${memDate(st2.licensedAt)}` : ''));
       hint.style.color = '#7fb08a';
     } else if (st2.state === 'trial') {
-      hint.innerHTML = `试用中 · 还剩 <b>${st2.daysLeft}</b> 天（共 ${st2.trialDays} 天）· 到期后记忆和自动路由会暂停`;
+      safeHTML(hint,  `试用中 · 还剩 <b>${st2.daysLeft}</b> 天（共 ${st2.trialDays} 天）· 到期后记忆和自动路由会暂停`);
       hint.style.color = '#93a0b5';
     } else {
-      hint.innerHTML = '试用已结束 · 自动路由和记忆已暂停，手选模型照常能用';
+      safeHTML(hint,  '试用已结束 · 自动路由和记忆已暂停，手选模型照常能用');
       hint.style.color = '#c98b8b';
     }
   }
@@ -1999,12 +2024,12 @@
     const meta = isChat
       ? `${kind}${memEsc(it.channel || '本机')} · ${memDate(it.ts)} · ${it.chars} 字`
       : `${kind}${memEsc(it.domain)} · ${memDate(it.ts)} · ${it.chars} 字`;
-    el.innerHTML =
+    safeHTML(el,
       `<div class="memp-main">` +
         `<div class="memp-title" title="${memEsc(it.title || it.url)}">${memEsc(it.title || '(无标题)')}${isChat ? ' <span class="memp-caret">⌄</span>' : ''}</div>` +
         `<div class="memp-meta">${meta}</div>` +
         (it.excerpt ? `<div class="memp-ex">${memEsc(it.excerpt)}</div>` : '') +
-      `</div>`;
+      `</div>`);
     const del = document.createElement('button');
     del.className = 'memp-del';
     del.textContent = '删除';
@@ -2034,11 +2059,11 @@
       detail.className = 'memp-detail';
       const lvl = it.level ? ` · 难度 ${it.level}` : '';
       const kindName = { simple: '简单', code: '代码', writing: '写作', hard: '硬' }[it.kind] || it.kind || '';
-      detail.innerHTML =
+      safeHTML(detail,
         `<div class="memp-d-q">${memEsc(it.q || it.title)}</div>` +
         `<div class="memp-d-a">${memEsc(it.a || it.excerpt || '')}</div>` +
         `<div class="memp-d-meta">${memEsc(it.channel || '')} · ${memEsc(kindName + lvl)} · ${it.ms ? '耗时 ' + (it.ms / 1000).toFixed(1) + 's · ' : ''}${it.chars} 字` +
-        (it.url ? ` · <span class="memp-d-open">打开当时的页面</span>` : '') + `</div>`;
+        (it.url ? ` · <span class="memp-d-open">打开当时的页面</span>` : '') + `</div>`);
       detail.style.display = 'none';
       el.appendChild(detail);
       const openLink = detail.querySelector('.memp-d-open');
@@ -2062,16 +2087,16 @@
 
   async function memLoad(reset) {
     const list = $('mem-list');
-    if (reset) { MEM_OFFSET = 0; list.innerHTML = ''; }
+    if (reset) { MEM_OFFSET = 0; safeHTML(list,  ''); }
     const q = ($('mem-q').value || '').trim();
-    list.insertAdjacentHTML('beforeend', '<div class="memp-empty" id="mem-loading">读取中…</div>');
+    safeHTML(list, '<div class="memp-empty" id="mem-loading">读取中…</div>', 'beforeend');
     try {
       const j = await memFetch(`/memory/list?limit=${MEM_PAGE}&offset=${MEM_OFFSET}&type=${MEM_TYPE}&q=${encodeURIComponent(q)}`);
       const loading = $('mem-loading');
       if (loading) loading.remove();
       $('mem-count').textContent = j.total;
       if (reset && !j.rows.length) {
-        list.innerHTML = `<div class="memp-empty">${memEmptyText()}</div>`;
+        safeHTML(list,  `<div class="memp-empty">${memEmptyText()}</div>`);
       }
       j.rows.forEach(it => list.appendChild(memRow(it)));
       MEM_OFFSET += j.rows.length;
@@ -2079,7 +2104,7 @@
     } catch (e) {
       const loading = $('mem-loading');
       if (loading) loading.remove();
-      list.insertAdjacentHTML('beforeend', `<div class="memp-empty">${memEsc(e.message)}</div>`);
+      safeHTML(list, `<div class="memp-empty">${memEsc(e.message)}</div>`, 'beforeend');
     }
   }
 
@@ -2238,9 +2263,9 @@
       return `${SC_MARK[r.state] || '·'} ${name} ${SC_TEXT[r.state] || r.state}${r.note ? '  · ' + r.note : ''}  ${r.ms}ms`;
     });
     const usable = res.filter(r => r.state === 'ok').map(r => SC_NAME[r.id]);
-    out.innerHTML = '<pre style="margin:0;white-space:pre-wrap;font-family:inherit">' + lines.join('\n') + '</pre>' +
+    safeHTML(out,  '<pre style="margin:0;white-space:pre-wrap;font-family:inherit">' + lines.join('\n') + '</pre>' +
       `<div style="margin-top:8px;opacity:.85">现在能用：${usable.length ? usable.join('、') : '一条都没有 —— 至少填一个 key'}</div>` +
-      `<div style="margin-top:6px;opacity:.7">质量优先/平衡档的首选是订阅通道；订阅开关关着时，能用的最强通道通常就是 DeepSeek。这就是"总是 DeepSeek"的原因。</div>`;
+      `<div style="margin-top:6px;opacity:.7">质量优先/平衡档的首选是订阅通道；订阅开关关着时，能用的最强通道通常就是 DeepSeek。这就是"总是 DeepSeek"的原因。</div>`);
   }
   $('sc-run').onclick = () => probeAll(false);
   $('sc-sub').onclick = () => probeAll(true);
@@ -2248,7 +2273,7 @@
   // ---------- 界面语言 ----------
   const langSel = $('set-lang');
   if (langSel) {
-    langSel.innerHTML = LANGS.map(([c, n]) => `<option value="${c}">${n}</option>`).join('');
+    safeHTML(langSel,  LANGS.map(([c, n]) => `<option value="${c}">${n}</option>`).join(''));
     langSel.value = LANG;
     langSel.addEventListener('change', async () => {
       LANG = langSel.value;
@@ -2345,9 +2370,9 @@
 
   function paintNoteList(items, root) {
     const box = $('note-list');
-    box.innerHTML = '';
+    safeHTML(box,  '');
     if (!items.length) {
-      box.innerHTML = '<div class="memp-empty">这里还没有笔记。点底部「新建」，或者在对话里点 💾 把回答存成一篇。</div>';
+      safeHTML(box,  '<div class="memp-empty">这里还没有笔记。点底部「新建」，或者在对话里点 💾 把回答存成一篇。</div>');
       return;
     }
     const flat = [];
@@ -2366,7 +2391,7 @@
       const j = await noteCall('/vault/list', {});
       paintNoteList(j.notes || [], j.root);
     } catch (e) {
-      $('note-list').innerHTML = '<div class="memp-empty">读不到笔记库：' + esc(e.message || String(e)) + '<br><br>' + (hostedOn() ? '检查服务器是否在线。' : '检查网关是否在跑（' + CFG.gatewayUrl + '）。') + '</div>';
+      safeHTML($('note-list'),  '<div class="memp-empty">读不到笔记库：' + esc(e.message || String(e)) + '<br><br>' + (hostedOn() ? '检查服务器是否在线。' : '检查网关是否在跑（' + CFG.gatewayUrl + '）。') + '</div>');
     }
   }
 
@@ -2428,7 +2453,7 @@
         ? `<div class="nback">↩ 被 ${n.backlinks.length} 篇引用：` +
           n.backlinks.map(b => `<span class="nl" data-note="${esc(b.path.replace(/\.md$/, ''))}">${esc(b.title)}</span>`).join(' · ') + '</div>'
         : '<div class="nback">还没有别的笔记引用它。</div>';
-      v.innerHTML = `<div class="nbar">
+      safeHTML(v,  `<div class="nbar">
           <button data-act="back">← 列表</button>
           <button data-act="edit">✎ 编辑</button>
           <button data-act="append">＋ 追加</button>
@@ -2436,7 +2461,7 @@
           <button data-act="del" style="border-color:#7a3030;color:#e0a0a0">删除</button>
         </div>
         <div class="nmeta">${esc(n.path)} · ${n.size} 字</div>
-        <div class="nbody">${renderNoteBody(n.body)}</div>${back}`;
+        <div class="nbody">${renderNoteBody(n.body)}</div>${back}`);
       v.classList.add('on');
       $('note-list').style.display = 'none';
       $('note-foot').style.display = 'none';
@@ -2467,7 +2492,7 @@
 
   function closeNoteView() {
     $('note-view').classList.remove('on');
-    $('note-view').innerHTML = '';
+    safeHTML($('note-view'),  '');
     $('note-list').style.display = '';
     $('note-foot').style.display = '';
     NOTE_CUR = null;
@@ -2475,12 +2500,12 @@
 
   function editNote(n, appendMode) {
     const v = $('note-view');
-    v.innerHTML = `<div class="nbar">
+    safeHTML(v,  `<div class="nbar">
         <button data-act="save" style="border-color:#2f6fed;color:#a9c7ff">保存</button>
         <button data-act="cancel">取消</button>
       </div>
       <div class="nmeta">${esc(n.path)}${appendMode ? ' · 追加到末尾' : ''}</div>
-      <textarea id="note-editor"></textarea>`;
+      <textarea id="note-editor"></textarea>`);
     const ta = v.querySelector('#note-editor');
     ta.value = appendMode ? '' : (n.body || '');
     if (appendMode) ta.placeholder = LANG === 'zh' ? '写在末尾的内容…（自动空一行）' : 'Text to add at the end…';
@@ -2545,12 +2570,12 @@
         try {
           const j = await noteCall('/vault/search', { q, k: 20 });
           const box = $('note-list');
-          box.innerHTML = '';
-          if (!(j.hits || []).length) { box.innerHTML = '<div class="memp-empty">没搜到。换个词试试，或者去「今天」记一条。</div>'; return; }
+          safeHTML(box,  '');
+          if (!(j.hits || []).length) { safeHTML(box,  '<div class="memp-empty">没搜到。换个词试试，或者去「今天」记一条。</div>'); return; }
           j.hits.forEach(h => {
             const row = document.createElement('div');
             row.className = 'memp-row';
-            row.innerHTML = `<div class="memp-t">📄 ${esc(h.title)}</div><div class="memp-sub">${esc(h.path)}</div><div class="memp-ex">${esc(h.excerpt || '')}</div>`;
+            safeHTML(row,  `<div class="memp-t">📄 ${esc(h.title)}</div><div class="memp-sub">${esc(h.path)}</div><div class="memp-ex">${esc(h.excerpt || '')}</div>`);
             row.onclick = () => openNote(h.path);
             box.appendChild(row);
           });
@@ -2592,7 +2617,7 @@
   function paintAtt() {
     const box = $('att');
     if (!box) return;
-    box.innerHTML = '';
+    safeHTML(box,  '');
     if (ATT.image) {
       const c = document.createElement('div');
       c.className = 'chip';
@@ -2809,7 +2834,7 @@
 
     const b = bubble('a', '…');
     let answer = '';
-    const paint = () => { b.innerHTML = md(answer || '…'); msgs.scrollTop = msgs.scrollHeight; };
+    const paint = () => { safeHTML(b,  md(answer || '…')); msgs.scrollTop = msgs.scrollHeight; };
 
     let used = null, lastErr = null;
     let searchNote = '';
@@ -2884,7 +2909,7 @@
 
       // ② 需要新鲜事实才走免费网页搜索
       if (SEARCH_ON && (forceSearch || NEEDS_FRESH.test(text))) {
-        b.innerHTML = '<span style="opacity:.5">搜索中…</span>';
+        safeHTML(b,  '<span style="opacity:.5">搜索中…</span>');
         try {
           const sr = await gm({
             method: 'POST',
@@ -2903,7 +2928,7 @@
         } catch (e) {
           // 搜索是增强项，失败就不出声，别把技术噪音塞给用户
         }
-        b.innerHTML = md('…');
+        safeHTML(b,  md('…'));
       }
       searchNote = notes.join(' · ');
 
@@ -2912,7 +2937,7 @@
 
       // === 托管模式：全部交给服务器，客户端不碰任何 key ===
       if (hostedOn()) {
-        b.innerHTML = '<span style="opacity:.5">思考中…</span>';
+        safeHTML(b,  '<span style="opacity:.5">思考中…</span>');
         const ctxMsgs = history.slice(-HISTORY_TURNS * 2).filter(m => m.content);
         const page = { title: document.title || '', text: (lastContext || '').slice(0, 6000) };
         let r;
@@ -2931,15 +2956,15 @@
         } catch (e) {
           b.className = 'm err';
           if (e.status === 402) {
-            b.innerHTML = md('免费试用结束了。\n\n继续用需要订阅（$8/月，也可以先申请延长试用）：\n[点这里订阅](https://buzzmartglobal-art.github.io/sidebrain/join)');
+            safeHTML(b,  md('免费试用结束了。\n\n继续用需要订阅（$8/月，也可以先申请延长试用）：\n[点这里订阅](https://buzzmartglobal-art.github.io/sidebrain/join)'));
             const t = document.createElement('div');
             t.className = 'tag';
             t.textContent = '试用已结束';
             b.appendChild(t);
           } else if (e.status === 429) {
-            b.innerHTML = md('今天的免费额度用完了，明天零点恢复。\n\n急用的话可以等一会儿再试，或者自己填一个 key（设置 → 高级）。');
+            safeHTML(b,  md('今天的免费额度用完了，明天零点恢复。\n\n急用的话可以等一会儿再试，或者自己填一个 key（设置 → 高级）。'));
           } else if (e.status === 401) {
-            b.innerHTML = md('这个设备的登录失效了。\n\n点 ⚙︎ → 「用邮箱重新连接」。');
+            safeHTML(b,  md('这个设备的登录失效了。\n\n点 ⚙︎ → 「用邮箱重新连接」。'));
           } else {
             b.textContent = '出错：' + (e.message || e);
           }
@@ -2949,7 +2974,7 @@
         used = { p: r.channel || 'server', m: r.model || '', why: '服务器自动选（' + (r.tier === 'free' ? '免费额度' : r.tier === 'paid' ? '付费兜底' : '本机') + '）' };
         route = { kind: r.kind || 'simple', level: r.level || 2, src: 'server', ms: 0 };
         chainList = (r.tried || []).map(t => ({ m: t.label }));
-        b.innerHTML = md(answer || '(空回复)');
+        safeHTML(b,  md(answer || '(空回复)'));
         const tag0 = document.createElement('div');
         tag0.className = 'tag';
         tag0.textContent = `${r.channel || '服务器'} · ${r.model || ''}${searchNote ? ' · ' + searchNote : ''}${r.saved ? ' · 已入库' : ''}`;
@@ -2996,7 +3021,7 @@
         answer = '';
         try {
           await streamCall(c, text, chunk => { answer += chunk; paint(); }, n => {
-            b.innerHTML = `<span style="opacity:.5">思考中… ${n} 字</span>`;
+            safeHTML(b,  `<span style="opacity:.5">思考中… ${n} 字</span>`);
             msgs.scrollTop = msgs.scrollHeight;
           });
           used = c;
@@ -3024,7 +3049,7 @@
       }
 
       if (used) {
-        b.innerHTML = md(answer || '(空回复)');
+        safeHTML(b,  md(answer || '(空回复)'));
         const tag = document.createElement('div');
         tag.className = 'tag';
         tag.textContent = `${used.p} · ${used.m} · ${used.why}${searchNote ? ' · ' + searchNote : ''}`;
