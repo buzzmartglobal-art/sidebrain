@@ -279,7 +279,7 @@
 <div class="sheet" id="menuSheet">
   <header>
     <button class="hbtn" id="menuBack">←</button>
-    <div class="brand"><b>设置</b></div>
+    <div class="brand"><b>Settings</b></div>
   </header>
   <div class="body" id="menuBody"></div>
 </div>
@@ -295,7 +295,7 @@
       <button class="cchip act" id="bkTabRead" data-tab="read">📖 朗读</button>
       <button class="cchip" id="bkTabText" data-tab="text">📚 英文教材</button>
     </div>
-    <div style="padding:0 0 8px"><input id="bookQ" class="inp" placeholder="搜书名" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a2f3a;background:#12151c;color:#e6e9ef;font-size:14px"></div>
+    <div style="padding:0 0 8px"><input id="bookQ" class="inp" placeholder="Search a title" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a2f3a;background:#12151c;color:#e6e9ef;font-size:14px"></div>
     <div id="bookList"></div>
   </div>
 </div>
@@ -324,9 +324,7 @@
 (() => {
   'use strict';
   // ?lang=zh / ?lang=en 可以强制界面语言（手机上系统语言是英文但你想看中文时用）
-  const LANGQ = (new URLSearchParams(location.search).get('lang') || '').toLowerCase();
-  const EN = LANGQ ? LANGQ.startsWith('en')
-                   : ((navigator.language || '').toLowerCase().startsWith('en') && !(navigator.language || '').toLowerCase().startsWith('zh'));
+  const EN = true;
   const T = {
     zh: { hi:'要问点什么？', hp:'截图、文件、语音都能直接发进来，回答会自动存进你的笔记库。',
       ph:'发消息…', hint:'回答来自自动选中的模型，你不用挑', notes:'笔记', settings:'设置',
@@ -983,7 +981,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261111-RR3';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
+  const BUILD = '20261111-EN1';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1226,7 +1224,7 @@
     // 译：把教练最后一句翻成中文（Gliglish 的那条）
     const tr = document.createElement('button');
     tr.className = 'cchip';
-    tr.textContent = '译';
+    tr.textContent = 'Translate';
     tr.title = EN ? 'Translate the last line' : '把最后一句翻成中文';
     tr.onclick = () => translateLast();
     bar.appendChild(tr);
@@ -1605,7 +1603,7 @@
   function startCourseTimer(seconds) { clearInterval(COURSE_TIMER); const el=$('#courseTimer'); if(!el)return; const end=Date.now()+seconds*1000, tick=()=>{const n=Math.max(0,Math.ceil((end-Date.now())/1000));el.textContent=String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');if(!n){clearInterval(COURSE_TIMER);toast(EN?'Time is up':'时间到',1800);}};tick();COURSE_TIMER=setInterval(tick,1000); }
   function highlightedReading(text, locates) { const raw=String(text||''), ranges=[]; for(const value of (locates||[])){const needle=String(value||'').trim(),i=raw.toLowerCase().indexOf(needle.toLowerCase());if(needle&&i>=0)ranges.push([i,i+needle.length]);} ranges.sort((a,b)=>a[0]-b[0]); if(!ranges.length)return esc(raw); let out='',pos=0; for(const [a,b] of ranges){if(a<pos)continue;out+=esc(raw.slice(pos,a))+'<mark>'+esc(raw.slice(a,b))+'</mark>';pos=b;} return out+esc(raw.slice(pos)); }
   function renderCourseResults(key, qs, answers, result, grade) { clearInterval(COURSE_TIMER); const m=COURSE_LESSON.material||{}, locates=qs.filter((q,i)=>!answers[i]?.correct&&q.locate).map(q=>q.locate); const swaps=(COURSE_LESSON.swaps||m.listen?.swaps||[]).slice(0,6); let html='<button class="cchip" id="resultBack">← '+(EN?'Stages':'五个阶段')+'</button><h2>'+(EN?'Review':'判分页')+'</h2>'; if(key==='read')html+='<div style="max-height:38vh;overflow:auto;white-space:pre-wrap;line-height:1.7">'+highlightedReading(m.read?.text,locates)+'</div>'; html+=answers.map((a,i)=>'<div class="course-q"><b>'+(a.correct?'✓':'✗')+' '+(i+1)+'. '+esc(qs[i]?.q||'')+'</b><div>'+(EN?'Your answer: ':'你的答案：')+esc(a.my||'—')+'</div><div>'+(EN?'Correct: ':'正确答案：')+esc(a.ans||'')+'</div>'+(qs[i]?.locate?'<small>'+(EN?'Locate: ':'定位句：')+esc(qs[i].locate)+'</small>':'')+'</div>').join(''); if(swaps.length)html+='<h3>'+(EN?'Paraphrases hit':'命中的同义替换')+'</h3>'+swaps.map(x=>'<div class="hint">'+esc((x.from||x.heard||'')+' ↔ '+(x.to||x.written||''))+'</div>').join(''); if(grade)html+='<h3>'+(EN?'Writing scores':'写作评分')+'</h3><div class="course-q">TR '+grade.tr+' · CC '+grade.cc+' · LR '+grade.lr+' · GRA '+grade.gra+' · <b>'+grade.overall+'</b><p>'+esc(grade.summary||'')+'</p></div>'+((grade.rewrites||[]).map(x=>'<div class="course-q"><del>'+esc(x.original||'')+'</del><br><b>'+esc(x.better||'')+'</b></div>').join(''))+'<details open><summary>'+(EN?'Model answer':'范文对照')+'</summary><p style="white-space:pre-wrap">'+esc(m.write?.modelAnswer||'—')+'</p></details>'; const be=result.bandEstimate||grade?.bandEstimate||{}; html+='<div class="course-top"><b>Band estimate</b><div>Listening '+(be.listen??'—')+' · Reading '+(be.read??'—')+' · Writing '+(be.write??'—')+' · Speaking '+(be.speak??'—')+'</div></div>'; courseBody.innerHTML=html; $('#resultBack').onclick=async()=>{COURSE=await api('/course',null,{method:'GET'});paintCourse();}; courseBody.scrollTop=0; }
-  function courseTypeZh(type){const t=String(type||'').toLowerCase();if(/true|false|given/.test(t))return '判断题';if(/choice|multiple/.test(t))return '选择题';if(/fill|gap|blank|completion/.test(t))return '填空题';if(/grade|write/.test(t))return '写作题';return '错题';}
+  function courseTypeZh(type){const t=String(type||'').toLowerCase();if(/true|false|given/.test(t))return 'True / False / Not Given';if(/choice|multiple/.test(t))return 'Multiple choice';if(/fill|gap|blank|completion/.test(t))return 'Gap fill';if(/grade|write/.test(t))return 'Writing';return 'Review item';}
   function highlightCourseChunks(text,chunks){let raw=String(text||''),out='',pos=0,hits=[];for(const c of chunks){const i=raw.toLowerCase().indexOf(String(c).toLowerCase());if(i>=0)hits.push([i,i+String(c).length]);}hits.sort((a,b)=>a[0]-b[0]);for(const h of hits){if(h[0]<pos)continue;out+=esc(raw.slice(pos,h[0]))+'<mark>'+esc(raw.slice(h[0],h[1]))+'</mark>';pos=h[1];}return out+esc(raw.slice(pos));}
   async function runCourseSpeak(stage,m){
     const card='<h3>'+esc(m.speak?.card||'')+'</h3><ul>'+(m.speak?.prompts||[]).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>',chunks=((COURSE_LESSON.warmup||{}).chunks||[]).filter(x=>x.en).map(x=>x.en).slice(0,4);let left=60,micPromise=openMic();
@@ -1622,9 +1620,9 @@
     if (key === 'warmup') {
       const w = COURSE_LESSON.warmup || {}, CH = w.chunks || [];
       const drill = CH.map((c,i) => c.wrong ? '<div class="course-q wrong-retry" data-ci="'+i+'"><b>'+esc(courseTypeZh(c.type))+' · '+esc(c.q||'')+'</b><div><del>'+esc(c.my||'—')+'</del></div><div>✓ '+esc(c.ans||'')+'</div><input class="inp wrong-answer" data-ci="'+i+'" style="width:100%;margin-top:8px" placeholder="'+(EN?'Answer again':'再答一次')+'"><button class="btn wrongOk" data-ci="'+i+'">✓ '+(EN?'Got it':'会了')+'</button></div>' : '<div class="course-q" data-ci="' + i + '">' +
-        '<div style="display:flex;gap:6px;align-items:flex-start"><button class="cchip chunkPlay" data-text="' + esc(c.zh) + '">🔊</button>' +
-        '<div style="flex:1"><b>' + esc(c.zh) + '</b><small style="display:block;color:var(--dim);margin-top:3px">' + esc(c.ask ? (EN ? c.ask.en : c.ask.zh) : '') + '</small>' +
-        '<div class="chunk-rev" style="display:none;margin-top:6px"><code>' + esc(c.en) + '</code><small style="color:var(--dim)"> · box ' + (c.box || 0) + '</small></div></div>' +
+        '<div style="display:flex;gap:6px;align-items:flex-start"><button class="cchip chunkPlay" data-text="' + esc(c.en) + '">🔊</button>' +
+        '<div style="flex:1"><b>' + esc(c.def || '') + '</b><small style="display:block;color:var(--dim);margin-top:3px">' + esc(c.type || '') + ' · ' + esc(c.ask ? c.ask.en : '') + '</small>' +
+        '<div class="chunk-rev" style="display:none;margin-top:6px"><code>' + esc(c.en) + '</code><small style="color:var(--dim)"> · ' + esc(c.zh || '') + '</small></div></div>' +
         '<button class="cchip chunkShow">👁</button></div>' +
         '<div style="display:flex;gap:8px;margin:8px 0 14px 0"><button class="btn chunkOk" data-ci="' + i + '">✓ ' + (EN ? 'said it' : '说出来了') + '</button>' +
         '<button class="btn chunkNo" data-ci="' + i + '">✗ ' + (EN ? 'missed' : '没说出来') + '</button></div></div>').join('');
@@ -1634,7 +1632,7 @@
         '<div class="hint" style="padding:2px 0 0">' + (EN ? 'Library: ' : '语块库：已练 ') + ((w.dueCount || 0)) + (EN ? ' due today' : ' 条今天到期') + '</div>';
     }
     if (key === 'listen') html = '<button class="btn" id="coursePlay">▶ ' + (EN ? 'Play' : '播放') + '</button>' + courseQuestions(m.listen && m.listen.questions) + '<details><summary>' + (EN ? 'Intensive transcript' : '精听文本') + '</summary>' + (m.listen?.lines || []).map(x => '<p><b>' + esc(x.who) + ':</b> ' + esc(x.text) + '</p>').join('') + '<p>' + (m.listen?.swaps || []).map(x => esc(x.heard + ' ↔ ' + x.written)).join('<br>') + '</p></details>';
-    if (key === 'read') { const gloss=Object.fromEntries((m.read?.gloss||[]).map(x=>[String(x.en||'').toLowerCase(),x.zh||''])); html = '<div style="display:flex;justify-content:space-between"><b>'+(EN?'Passage':'原文')+'</b><b id="courseTimer">10:00</b></div><div class="read-passage" style="max-height:42vh;overflow:auto;white-space:pre-wrap;line-height:1.75;padding:10px 0">' + String(m.read?.text || '').split(/(\s+)/).map(w=>/^\s+$/.test(w)?w:'<span class="glossWord" data-gloss="'+esc(gloss[w.replace(/[^\w'-]/g,'').toLowerCase()]||'')+'">'+esc(w)+'</span>').join('') + '</div><div style="position:sticky;bottom:0;background:var(--bg);padding-top:8px;max-height:38vh;overflow:auto">' + courseQuestions(m.read?.questions) + '</div>'; }
+    if (key === 'read') { html = '<div style="display:flex;justify-content:space-between"><b>Passage</b><b id="courseTimer">10:00</b></div><div class="read-passage" style="max-height:42vh;overflow:auto;white-space:pre-wrap;line-height:1.75;padding:10px 0">' + String(m.read?.text || '').split(/(\s+)/).map(w=>/^\s+$/.test(w)?w:'<span class="glossWord">'+esc(w)+'</span>').join('') + '</div><div style="position:sticky;bottom:0;background:var(--bg);padding-top:8px;max-height:38vh;overflow:auto">' + courseQuestions(m.read?.questions) + '</div>'; }
     if (key === 'write') html = '<div style="display:flex;justify-content:space-between"><b id="writeCount">0 '+(EN?'words':'词')+'</b><b id="courseTimer">08:00</b></div><p>' + esc(m.write?.prompt || '') + '</p><textarea id="courseWrite" placeholder="' + (EN ? 'Write sentences or one paragraph…' : '写句子或一个段落…') + '"></textarea>';
     courseBody.innerHTML = '<button class="cchip" id="courseStages">← ' + (EN ? 'Stages' : '五个阶段') + '</button><div class="course-material"><h2 style="margin-top:0">' + esc(EN ? stage.title : stage.titleZh) + ' · ' + stage.min + ' min</h2>' + html + '</div><button class="btn primary" id="courseDone">' + (EN ? 'Complete this stage' : '完成这一段') + '</button>';
     $('#courseStages').onclick = paintCourse;
@@ -1675,7 +1673,6 @@
     const chunks = (u.chunks || []).map(c =>
       '<div style="padding:7px 0;border-top:1px solid #1d222b">' +
         '<b>' + esc(c.chunk) + '</b>' +
-        (c.zh ? '<span class="hint" style="display:block;padding-top:2px">' + esc(c.zh) + '</span>' : '') +
         (c.line ? '<span class="hint" style="display:block;padding-top:2px;color:#8f9bb3">“' + esc(c.line) + '”</span>' : '') +
       '</div>').join('');
     const cloze = (u.cloze || []).map(c =>
@@ -1694,7 +1691,6 @@
         '<div class="card2" style="background:#12151c;border-radius:14px;padding:14px;margin-bottom:10px">' +
           '<div style="font-size:15px;font-weight:700;margin-bottom:6px">' + (EN ? 'Golden line' : '金句') + '</div>' +
           '<div style="font-size:15px;line-height:1.45">' + esc(u.golden.line) + '</div>' +
-          (u.golden.zh ? '<div class="hint" style="padding-top:6px">' + esc(u.golden.zh) + '</div>' : '') +
           '<button class="cchip" id="filmSay" style="margin-top:10px">🔊 ' + (EN ? 'Hear it' : '念一遍') + '</button>' +
         '</div>' : '') +
       (cloze ? '<div class="card2" style="background:#12151c;border-radius:14px;padding:14px;margin-bottom:10px">' +
@@ -1763,14 +1759,14 @@
     const d = PLAN.day, p = PLAN.progress || {};
     const pct = PLAN.total ? Math.round((p.done || 0) / PLAN.total * 100) : 0;
     planBody.innerHTML =
-      '<div class="rd" style="padding:2px 0 10px"><b style="font-size:17px">' + esc(PLAN.level + ' · ' + (PLAN.info ? PLAN.info.zh : '')) + '</b>' +
+      '<div class="rd" style="padding:2px 0 10px"><b style="font-size:17px">' + esc(PLAN.level) + '</b>' +
       '<div class="hint" style="padding:6px 0 0">' + esc(PLAN.info ? PLAN.info.goal : '') + '</div></div>' +
       '<div class="rdb" style="margin-bottom:10px"><i style="width:' + pct + '%"></i></div>' +
       '<div class="hint" style="padding-bottom:12px">' + (EN ? 'Day ' : '第 ') + d.n + (EN ? ' of ' : ' / ') + PLAN.total + ' · ' + (EN ? p.done + ' done' : '已完成 ' + p.done + ' 课') + '</div>' +
       '<div class="card2" style="background:#12151c;border-radius:14px;padding:14px;margin-bottom:12px">' +
         '<div style="font-size:16px;font-weight:700;margin-bottom:4px">' + esc(d.unitTitle) + '</div>' +
         '<div class="hint" style="padding-bottom:8px">' + esc(d.focus) + '</div>' +
-        d.chunks.map(c => '<div style="padding:5px 0;border-top:1px solid #1d222b"><b>' + esc(c.en) + '</b><span class="hint" style="display:block;padding-top:2px">' + esc(c.zh) + ' · ' + esc(c.ex) + '</span></div>').join('') +
+        d.chunks.map(c => '<div style="padding:5px 0;border-top:1px solid #1d222b"><b>' + esc(c.en) + '</b><span class="hint" style="display:block;padding-top:2px">' + esc(c.ex) + '</span></div>').join('') +
         '<div class="hint" style="padding-top:10px">' + (EN ? 'Task: ' : '任务：') + esc(d.task) + '</div>' +
       '</div>' +
       '<button class="big" id="planGo" style="width:100%;margin-bottom:10px">' + (EN ? '▶ Start today\u2019s lesson' : '▶ 开始今天的课') + '</button>' +
@@ -2657,10 +2653,10 @@
   function paintMenu() {
     const left = ACCT && ACCT.daysLeft != null ? Math.max(0, Math.ceil(ACCT.daysLeft)) : null;
     $('#menuBody').innerHTML =
-      '<div class="sec">账号</div>' +
+      '<div class="sec">Account</div>' +
       '<div class="rowitem"><div class="t"><b>' + esc(ACCT && ACCT.email || '—') + '</b><span>' +
         (ACCT ? (ACCT.plan === 'active' || ACCT.plan === 'free' ? (ACCT.plan === 'free' ? T.acctFree : T.acctActive) : T.acctTrial + ' · ' + (left != null ? left + ' ' + T.days : '')) : '') + '</span></div></div>' +
-      '<div class="sec">分享进来</div>' +
+      '<div class="sec">Share to Sidebrain</div>' +
       '<div class="rowitem" id="mSpriteLive"><div class="t"><b>✦ ' + T.spriteLive + '</b><span>' + T.spriteLiveTip + '</span></div><div class="k">' + T.spriteNew + ' ›</div></div>' +
       '<div class="rowitem" id="mSpriteFile"><div class="t"><b>⬇ ' + (EN ? 'Download the script file' : '下载脚本文件') + '</b><span>' + (EN ? 'Saves Sidebrain.user.js to Files — drop it into the Userscripts folder. The most reliable way.' : '存成 Sidebrain.user.js，拖进「文件」App 里的 Userscripts 文件夹 —— 最稳的一条，不碰扩展的安装面板') + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mSpriteCheck"><div class="t"><b>🔎 ' + (EN ? 'Self-check' : '自检') + '</b><span>' + (EN ? 'Installed the sprite but nothing shows up on pages? Run the checks.' : '装好了但网页上没反应？逐项检查，红在哪修哪') + '</span></div><div class="k">›</div></div>' +
@@ -2668,7 +2664,7 @@
       '<div class="rowitem" id="mSpriteDl"><div class="t"><b>⬇ ' + T.spriteDl + '</b><span>' + T.spriteDlTip + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mSpriteCode"><div class="t"><b>🔖 ' + T.spriteCode + '</b><span>' + T.spriteCodeTip + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mShareAddr"><div class="t"><b>🔗 ' + T.shareAddr + '</b><span>' + T.shareTip + '</span></div><div class="k">' + T.copyAddr + ' ›</div></div>' +
-      '<div class="sec">模式</div>' +
+      '<div class="sec">Modes</div>' +
       '<div class="rowitem" id="mBook"><div class="t"><b>📖 ' + (EN ? 'Read a book to me' : '朗读一本书') + '</b><span>' +
         (bookActive() ? esc(BOOK.title) : (EN ? 'From your Mac: epub, txt. It keeps the story straight and answers questions about it.' : '念你电脑里的 epub / txt，一段一段接着念，还能回答书里的事')) +
         '</span></div><div class="k">' + (bookActive() ? (EN ? 'reading' : '在念') : '›') + '</div></div>' +
@@ -2686,7 +2682,7 @@
         (EN ? (coachOn() ? 'ON · talk in English, I fix your sentence first' : 'Practice English: I correct your sentence, then keep the chat going') :
               (coachOn() ? '已开启 · 用英文说，我先把你的句子改地道' : '练英文：先把你的句子改地道，再接着聊')) +
         '</span></div><div class="k">' + (coachOn() ? (EN ? 'ON' : '开') : (EN ? 'OFF' : '关')) + ' ›</div></div>' +
-      '<div class="sec">声音</div>' +
+      '<div class="sec">Voice</div>' +
       '<div class="rowitem" id="mVoiceOn"><div class="t"><b>🔊 ' + (EN ? 'Speak replies' : '回答朗读') + '</b><span>' + (EN ? 'Read every answer out loud' : '每条回答都念出来') + '</span></div>' +
         '<div class="k">' + (VOICE_ON ? (EN ? 'ON' : '开') : (EN ? 'OFF' : '关')) + ' ›</div></div>' +
       '<div class="rowitem" id="mVoiceTop"><div class="t"><b>🔊 ' + (EN ? 'Voice' : '嗓音') + '</b><span>' +
@@ -2702,16 +2698,16 @@
              charon: EN ? 'Charon · deep male' : 'Charon · 低沉男声' }[v]) + '</button>').join(' ') +
         '<div class="hint" style="padding:10px 0 6px">' + (EN ? 'Tap a voice to hear it.' : '点一下就能听到。') + '</div>' +
         '<div class="hint" style="padding:2px 0 8px">' + (EN ? 'Want the ElevenLabs voice? Paste your key once — every sentence after that uses it.' : '想用你自己的 ElevenLabs 声音？把 key 粘一次，之后所有句子都走它。') + '</div>' +
-        '<input id="elKey" class="inp" placeholder="xi-api-key" autocomplete="off" spellcheck="false" value="' + (EL_HAS ? '•••• 已保存' : '') + '" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a2f3a;background:#12151c;color:#e6e9ef;font-size:14px">' +
+        '<input id="elKey" class="inp" placeholder="xi-api-key" autocomplete="off" spellcheck="false" value="' + (EL_HAS ? '•••• saved' : '') + '" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a2f3a;background:#12151c;color:#e6e9ef;font-size:14px">' +
         '<div style="display:flex;gap:8px;margin-top:8px"><button class="cchip" id="elSave">' + (EN ? 'Save key' : '保存 key') + '</button>' +
         '<button class="cchip" id="elClear">' + (EN ? 'Remove' : '清除') + '</button></div>' +
       '</div>' +
-      '<div class="sec">用</div>' +
+      '<div class="sec">Use</div>' +
       '<div class="rowitem" id="mNotes"><div class="t"><b>🗒 ' + T.notes + '</b></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mExport"><div class="t"><b>⬇ ' + T.exportV + '</b><span>' + T.exportTip + '</span></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mClear"><div class="t"><b>🧹 ' + T.clear + '</b></div><div class="k">›</div></div>' +
       '<div class="rowitem" id="mLogout"><div class="t"><b>👤 ' + T.logout + '</b></div><div class="k">›</div></div>' +
-      '<div class="sec">关于</div>' +
+      '<div class="sec">About</div>' +
       '<div class="rowitem"><div class="t"><b>Sidebrain</b><span>' + (EN ? 'Routes each message to the cheapest model that fits. Notes stay in plain Markdown.' : '每条消息自动交给最合适又最便宜的模型。笔记就是普通 Markdown 文件。') + '</span></div></div>' +
       '<div class="hint" style="padding-top:16px">' + (EN ? 'Tip: Share → Add to Home Screen to use it like an app.' : '提示：点 Safari 的分享 → 添加到主屏幕，用起来就跟 App 一样。') + '</div>' +
       '<div class="hint" style="text-align:center;opacity:.45;font-size:11.5px;padding-top:6px">build ' + BUILD + '</div>';
@@ -2744,7 +2740,7 @@
       try {
         await api('/account/tts-key', { key: k });
         EL_HAS = true; toast(EN ? 'ElevenLabs on — try the voice again' : 'ElevenLabs 接上了，再点一次嗓音试试', 2400);
-        $('#elKey').value = '•••• 已保存';
+        $('#elKey').value = '•••• saved';
       } catch (e) { toast(e.message || 'save failed', 2400); }
     };
     $('#elClear').onclick = async () => {
