@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Safari AI Sidebar（自用）
-// @description  网页右侧 AI 侧边栏：自带 key 跑 DeepSeek / OpenRouter / Gemini / Anthropic，按任务自动挑最省钱且够用的模型
+// @description  网页右侧 Sidebrain：连接 Sidebrain 服务自动选模型，也保留自带 key / Ollama 高级通道
 // @namespace    cola.local
-// @version      1.4.0
+// @version      1.5.0
 // @edition      free
 // @match        *://*/*
 // @grant        GM.xmlHttpRequest
@@ -16,8 +16,10 @@
 /* 用法
  * 1) 装免费的 Userscripts（App Store, quoid 出品），Safari 设置里启用并「允许所有网站」
  * 2) 把本文件放进 Userscripts 目录，打开一次扩展弹窗让它加载
- * 3) 网页里按 ⌘⇧K 开侧边栏，点齿轮填 key（至少填一个）
- * 4) 模型选「自动」即可：短问题走便宜模型，长文/硬推理自动升级
+ * 3) 打开带 ?k=sb_xxx 的 Sidebrain 连接链接；令牌会安全存进 Userscripts 的 GM 存储
+ * 4) 网页里按 ⌘⇧K 开侧边栏即可聊天；服务器会自动探活并选择可用地址
+ * 5) 没有连接链接时，面板里的「连接 Sidebrain」会打开注册/登录说明
+ * 6) 自带 key、旧网关和本地 Ollama 仍在齿轮 → 高级里，默认折叠
  */
 (() => {
   'use strict';
@@ -28,7 +30,7 @@
   const DEFAULTS = {
     hosted: true,                              // 默认走我们自己的服务器：用户不填 key、不选模型
     sbToken: '',                               // 注册后由服务端发的一次性令牌
-    serverBase: 'http://127.0.0.1:8792',
+    serverBase: 'https://coodi-mac-mini.tail5bebf0.ts.net:8444',
     deepseekKey: '',
     openrouterKey: '',
     subChatGPT: false,
@@ -42,7 +44,7 @@
     anthropicModel: 'claude-sonnet-4-5',
     ollamaModel: 'gemma4:e4b-it-q4_K_M',
     ollamaUrl: 'http://localhost:11434',
-    gatewayUrl: 'http://127.0.0.1:8791',
+    gatewayUrl: 'https://coodi-mac-mini.tail5bebf0.ts.net:8444',
     panelWidth: 400,
     cacheEnabled: false,
     tinySpend: true,
@@ -296,15 +298,63 @@
   // ---------- 托管模式：请求只发给我们的服务器 ----------
   const hostedOn = () => !!(CFG.hosted && CFG.sbToken);
   const SERVER = () => (CFG.serverBase || DEFAULTS.serverBase).replace(/\/+$/, '');
+  const TS_BASE = 'https://coodi-mac-mini.tail5bebf0.ts.net:8444';
+  const LOCAL_BASE = 'http://127.0.0.1:8792';
+  const ENDPOINT_URL = 'https://buzzmartglobal-art.github.io/sidebrain/endpoint.json';
+  let baseReady = null;
 
-  function serverCall(pathname, { method = 'GET', body = null, timeout = 90000 } = {}) {
-    return gm({
+  async function alive(base, timeout = 4500) {
+    try {
+      const r = await gm({ method: 'GET', url: base.replace(/\/+$/, '') + '/health', timeout });
+      return r.status >= 200 && r.status < 300;
+    } catch (_) { return false; }
+  }
+
+  async function endpointCandidates() {
+    const out = [];
+    const push = value => {
+      const u = String(value || '').replace(/\/+$/, '');
+      if (/^https?:\/\//.test(u) && !out.includes(u)) out.push(u);
+    };
+    push(TS_BASE);
+    push(LOCAL_BASE);
+    try {
+      const r = await gm({ method: 'GET', url: ENDPOINT_URL + '?t=' + Date.now(), timeout: 6000 });
+      const j = JSON.parse(r.responseText || '{}');
+      push(j.serverBase);
+      if (Array.isArray(j.recent)) j.recent.forEach(push);
+    } catch (_) {}
+    return out;
+  }
+
+  function ensureBase(force = false) {
+    if (force) baseReady = null;
+    if (!baseReady) baseReady = (async () => {
+      const candidates = await endpointCandidates();
+      for (const base of candidates) {
+        if (await alive(base)) {
+          CFG.serverBase = base;
+          paintConnection();
+          return base;
+        }
+      }
+      CFG.serverBase = candidates[0] || DEFAULTS.serverBase;
+      paintConnection();
+      return CFG.serverBase;
+    })();
+    return baseReady;
+  }
+
+  async function serverCall(pathname, { method = 'GET', body = null, timeout = 90000, retry = true } = {}) {
+    const base = await ensureBase();
+    try {
+      const r = await gm({
       method,
-      url: SERVER() + pathname,
+      url: base + pathname,
       headers: { 'Content-Type': 'application/json', 'bypass-tunnel-reminder': '1', ...(CFG.sbToken ? { Authorization: 'Bearer ' + CFG.sbToken } : {}) },
       data: body ? JSON.stringify(body) : undefined,
       timeout,
-    }).then(r => {
+      });
       let j = {};
       try { j = JSON.parse(r.responseText); } catch (_) {}
       if (r.status >= 200 && r.status < 300) return j;
@@ -312,18 +362,19 @@
       e.status = r.status;
       e.body = j;
       throw e;
-    }, () => { throw new Error('连不上服务器（' + SERVER() + '）'); });
+    } catch (e) {
+      if (retry && (!e.status || e.status >= 500)) {
+        baseReady = null;
+        const next = await ensureBase(true);
+        if (next && next !== base) return serverCall(pathname, { method, body, timeout, retry: false });
+      }
+      if (!e.status) throw new Error('连不上服务器（' + base + '）');
+      throw e;
+    }
   }
 
   // 服务器地址：优先用说明文件里的（我们换地址时不用让用户重装）
-  async function resolveEndpoint() {
-    try {
-      const r = await gm({ url: 'https://buzzmartglobal-art.github.io/sidebrain/endpoint.json?t=' + Date.now(), method: 'GET', timeout: 6000 });
-      const j = JSON.parse(r.responseText);
-      if (j && j.serverBase) { CFG.serverBase = String(j.serverBase).replace(/\/+$/, ''); return true; }
-    } catch (_) {}
-    return false;
-  }
+  async function resolveEndpoint() { await ensureBase(); return true; }
 
   async function ensureAccount() {
     if (CFG.sbToken) {
@@ -372,12 +423,22 @@
     }
   }
 
+  function paintConnection() {
+    const card = $('connect-card'), base = $('connect-base');
+    if (!card) return;
+    card.classList.toggle('on', !hostedOn());
+    if (base) base.textContent = SERVER();
+    if (input) input.disabled = !hostedOn();
+    if (sendBtn) sendBtn.disabled = !hostedOn() || busy;
+  }
+
   async function refreshAcct() {
     try {
       ACCT = await ensureAccount();
       if (ACCT) ACCT.plan = ACCT.plan || 'trial';
     } catch (_) { ACCT = null; }
     paintAcct();
+    paintConnection();
     // 顶栏：连上服务器之后就不让用户挑模型
     const sel = $('model'), hm = $('hmode');
     const adv = $('adv');
@@ -861,6 +922,12 @@
   .memp-foot { padding: 8px 12px; border-top: 1px solid #2a2e36; display: flex; gap: 8px; align-items: center; }
   .memp-empty { padding: 24px 12px; text-align: center; color: #6b7484; font-size: 12px; line-height: 1.7; }
   .hint b { color: #93a0b5; }
+  .connect { margin: 12px; padding: 18px; border: 1px solid #303846; border-radius: 14px; background: linear-gradient(145deg,#1c222c,#171a20); display: none; gap: 10px; flex-direction: column; }
+  .connect.on { display: flex; }
+  .connect h2 { margin: 0; font-size: 16px; color: #eef3fb; }
+  .connect p { margin: 0; color: #aab4c4; line-height: 1.65; }
+  .connect .base { color: #738096; font: 10.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; overflow-wrap: anywhere; }
+  .connect a { align-self: flex-start; color: #fff; background: #3b6fd4; border-radius: 8px; padding: 8px 13px; text-decoration: none; font-weight: 600; }
 </style>
 <div class="wrap">
   <div class="panel hidden" id="panel">
@@ -1024,6 +1091,12 @@
           <b>无担保</b>——本工具按现状提供，不对输出内容的准确性作任何承诺，重要决策请自行核对。
         </div>
       </details>
+    </div>
+    <div class="connect" id="connect-card">
+      <h2>连接 Sidebrain</h2>
+      <p>登录后即可在任何网页里使用 Sidebrain。连接链接会自动保存登录令牌，不需要填写 API key。</p>
+      <a href="https://buzzmartglobal-art.github.io/sidebrain/safari-app-install.html" target="_blank" rel="noopener">打开注册 / 登录说明</a>
+      <div class="base">当前服务器：<span id="connect-base">探测中…</span></div>
     </div>
     <div class="msgs" id="msgs"></div>
     <div class="composer">
@@ -1555,7 +1628,7 @@
     }
   }
 
-  function openPanel() { busy = false; sendBtn.disabled = false; panel.classList.remove('hidden'); fab.style.display = 'none'; input.focus(); }
+  function openPanel() { busy = false; paintConnection(); panel.classList.remove('hidden'); fab.style.display = 'none'; if (hostedOn()) input.focus(); }
   function closePanel() { panel.classList.add('hidden'); fab.style.display = 'flex'; }
   fab.onclick = openPanel;
 
@@ -1722,17 +1795,7 @@
       timeout: 12000,
     });
   }
-  // 第一次用（一个 key 都没填）就把设置打开，并告诉他要做什么
-  const hasAnyKey = () => !!(CFG.deepseekKey || CFG.geminiKey || CFG.groqKey || CFG.openrouterKey || CFG.anthropicKey);
-  // 第一次用：托管模式只让他填一个邮箱；自己带 key 的老用户不打扰
-  if (CFG.hosted && !CFG.sbToken) {
-    setTimeout(() => {
-      $('settings').classList.add('on');
-      bubble('a', LANG === 'zh'
-        ? '第一次用，只有一步：**填个邮箱**，7 天免费就开了。\n\n不用信用卡，不用挑模型，不用申请任何 key —— 用哪家模型由服务器决定，坏了自己往下切。'
-        : 'One step to start: **enter your email** and the 7-day trial opens.\n\nNo card, no model picking, no API keys. The server chooses the model and falls back on its own if one breaks.');
-    }, 900);
-  }
+  paintConnection();
   setTimeout(refreshTrial, 600);
   bindAttach();
   bindNotes();
@@ -2697,6 +2760,8 @@
   // ---------- 发送 ----------
   async function send() {
     if (busy) return;
+    if (!hostedOn()) { paintConnection(); return; }
+    await ensureBase();
     let text = input.value.trim();
     const hasAtt = !!(ATT.image || ATT.files.length);
     if (!text && !hasAtt) return;
@@ -3025,6 +3090,16 @@
       // 托管模式的登录令牌单独存（不随 cfg 一起被覆盖）
       const tk = await GM.getValue('sbToken', '');
       if (tk) CFG.sbToken = tk;
+      // 带连接码的链接（?k=sb_…）：直通登录并写进 GM 存储。
+      try {
+        const q = new URLSearchParams(location.search);
+        const linked = q.get('k');
+        if (linked && /^sb_[A-Za-z0-9_]+$/.test(linked)) {
+          CFG.sbToken = linked;
+          CFG.hosted = true;
+          await GM.setValue('sbToken', linked);
+        }
+      } catch (_) {}
       const m = await GM.getValue('model', 'auto');
       MODEL_CHOICE = m || 'auto-b';
       if (MODEL_CHOICE === 'gateway' || MODEL_CHOICE === 'auto') MODEL_CHOICE = 'auto-b'; // 旧默认并入平衡档
@@ -3044,5 +3119,6 @@
       panel.style.setProperty('--w', (CFG.panelWidth || 400) + 'px');
     } catch (_) { /* 忽略 */ }
     fillSettings();
+    paintConnection();
   })();
 })();
