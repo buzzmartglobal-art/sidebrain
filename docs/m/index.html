@@ -996,7 +996,7 @@
     try {
       const r = await fetch(location.pathname + '?fresh=' + Date.now(), { cache: 'no-store' });
       const t = await r.text();
-      const m = /const BUILD = '([^']+)'/.exec(t).exec(t);
+      const m = /const BUILD = '([^']+)'/.exec(t);
       if (m && m[1] && m[1] !== BUILD) showUpdateBar();
     } catch (_) {}
   }
