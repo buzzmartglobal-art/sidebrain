@@ -2,7 +2,7 @@
 // @name         Safari AI Sidebar（自用）
 // @description  网页右侧 Sidebrain：连接 Sidebrain 服务自动选模型，也保留自带 key / Ollama 高级通道
 // @namespace    cola.local
-// @version      1.5.1
+// @version      1.5.2
 // @edition      free
 // @match        *://*/*
 // @grant        GM.xmlHttpRequest
@@ -24,7 +24,43 @@
 (() => {
   'use strict';
   if (window.top !== window.self) return;
-  if (document.getElementById('__cola_ai_host__')) return;
+
+  let cleanupMount = () => {};
+  let keepAliveTimer = null;
+  let unloading = false;
+
+  function mount() {
+    cleanupMount();
+    const staleHost = document.getElementById('__cola_ai_host__');
+    if (staleHost) staleHost.remove();
+
+    const abort = new AbortController();
+    const timers = new Set();
+    const intervals = new Set();
+    const setTimeout = (fn, ms, ...args) => {
+      const id = window.setTimeout((...cbArgs) => {
+        timers.delete(id);
+        fn(...cbArgs);
+      }, ms, ...args);
+      timers.add(id);
+      return id;
+    };
+    const clearTimeout = id => {
+      timers.delete(id);
+      window.clearTimeout(id);
+    };
+    const setInterval = (fn, ms, ...args) => {
+      const id = window.setInterval(fn, ms, ...args);
+      intervals.add(id);
+      return id;
+    };
+    cleanupMount = () => {
+      abort.abort();
+      timers.forEach(id => window.clearTimeout(id));
+      intervals.forEach(id => window.clearInterval(id));
+      timers.clear();
+      intervals.clear();
+    };
 
   // ---------- 配置 ----------
   const DEFAULTS = {
@@ -1776,13 +1812,13 @@
         showSelBub(r.left + r.width / 2, r.bottom, rects.length ? rects[0].top : r.top);
       }, 260);
     };
-    document.addEventListener('selectionchange', onSel);
-    document.addEventListener('touchend', () => setTimeout(onSel, 60), { passive: true });
-    document.addEventListener('scroll', hideSelBub, { passive: true, capture: true });
+    document.addEventListener('selectionchange', onSel, { signal: abort.signal });
+    document.addEventListener('touchend', () => setTimeout(onSel, 60), { passive: true, signal: abort.signal });
+    document.addEventListener('scroll', hideSelBub, { passive: true, capture: true, signal: abort.signal });
     // 点面板外收起气泡
     document.addEventListener('touchstart', e => {
       if (selbub && selbub.classList.contains('on') && !selbub.contains(e.target)) hideSelBub();
-    }, { passive: true });
+    }, { passive: true, signal: abort.signal });
   }
   $('close').onclick = closePanel;
   $('clear').onclick = () => { history.length = 0; safeHTML(msgs,  ''); };
@@ -1843,7 +1879,7 @@
       e.preventDefault();
       panel.classList.contains('hidden') ? openPanel() : closePanel();
     }
-  }, true);
+  }, { capture: true, signal: abort.signal });
 
   // 拖动改宽
   (() => {
@@ -1857,10 +1893,10 @@
       const w = Math.min(Math.max(startW + (startX - e.clientX), 300), Math.min(760, window.innerWidth - 200));
       panel.style.setProperty('--w', w + 'px');
       CFG.panelWidth = w;
-    });
+    }, { signal: abort.signal });
     window.addEventListener('mouseup', () => {
       if (dragging) { dragging = false; GM.setValue('cfg', CFG); }
-    });
+    }, { signal: abort.signal });
   })();
 
   // 模型选择持久化
@@ -3146,4 +3182,18 @@
     fillSettings();
     paintConnection();
   })();
+  }
+
+  mount();
+  keepAliveTimer = window.setInterval(() => {
+    if (unloading) return;
+    const liveHost = document.getElementById('__cola_ai_host__');
+    if (!liveHost || !liveHost.shadowRoot || !liveHost.shadowRoot.querySelector('#fab')) mount();
+  }, 2000);
+  window.addEventListener('unload', () => {
+    unloading = true;
+    if (keepAliveTimer !== null) window.clearInterval(keepAliveTimer);
+    keepAliveTimer = null;
+    cleanupMount();
+  }, { once: true });
 })();
