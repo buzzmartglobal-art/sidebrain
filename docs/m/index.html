@@ -983,7 +983,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261110-1435';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
+  const BUILD = '20261111-0919';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -996,7 +996,7 @@
     try {
       const r = await fetch(location.pathname + '?fresh=' + Date.now(), { cache: 'no-store' });
       const t = await r.text();
-      const m = /const BUILD = '20261110-1435']+)'/.exec(t);
+      const m = /const BUILD = '([^']+)'/.exec(t).exec(t);
       if (m && m[1] && m[1] !== BUILD) showUpdateBar();
     } catch (_) {}
   }
