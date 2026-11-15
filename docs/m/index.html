@@ -982,7 +982,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261111-EN2';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
+  const BUILD = '20261111-EN3';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -2214,6 +2214,11 @@
     });
     return { drop: sim > 0.6 || contained, sim };
   }
+  function hintEchoMatch(txt, lastMine, cHint) {
+    const said = echoNorm(txt), mine = echoNorm(lastMine), hint = echoNorm(cHint);
+    const words = said ? said.split(' ').length : 0;
+    return !!said && ((!!mine && said === mine) || (words <= 4 && hint.includes(said)));
+  }
   async function onSeg() {
     const blob = new Blob(REC_CHUNKS, { type: (REC && REC.mimeType) || 'audio/mp4' });
     REC_CHUNKS = [];
@@ -2233,6 +2238,8 @@
       if (!txt) { if (VAD_ON) setState('listen'); return; }
       const echo = echoMatch(txt);
       if (echo.drop) { dbg('echo_drop', { txt, sim: echo.sim }); if (VAD_ON) setState('listen'); return; }
+      // 人几乎不会逐字重复上一句；弱音频时 Whisper 会抄 hint。接受的误判是用户的原句重复会被忽略一次，代价远小于机器自问自答。
+      if (hintEchoMatch(txt, lastMine && lastMine.text, cHint)) { dbg('echo_drop', { txt, sim: echo.sim, why: 'hint_echo' }); if (VAD_ON) setState('listen'); return; }
       if (busy) { PENDING.push(txt); dbg('pending_q', { n: PENDING.length }); if (VAD_ON) setState('listen'); return; }
       ta.value = txt; autoGrow();
       send();
