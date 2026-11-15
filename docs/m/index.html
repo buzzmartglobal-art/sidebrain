@@ -695,6 +695,7 @@
     const push = text => {
       const part = plainSay(text).replace(/\s+/g, ' ').trim();
       if (!part) return;
+      rememberSpoken(part);
       const t0 = Date.now(), idx = parts++;
       jobs.push(ttsFetch(part, 'fast').then(url => {
         if (idx === 0) firstMs = Date.now() - t0;
@@ -981,7 +982,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261111-EN1';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
+  const BUILD = '20261111-EN2';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -1334,9 +1335,17 @@
   const AUD = new Audio();
   AUD.preload = 'auto';
   let audReady = false;
+  const ECHO_HOLD = 900;                 // 音频停后留 ~900ms，给扬声器尾音/回声消除收尾
+  let ECHO_HOLD_UNTIL = 0, LAST_SPOKEN_SENTENCE = '';
+  function enterEchoHold() { ECHO_HOLD_UNTIL = Date.now() + ECHO_HOLD; }
+  function rememberSpoken(t) {
+    const parts = String(t || '').match(/[^.!?…;]+[.!?…;]?/g) || [];
+    LAST_SPOKEN_SENTENCE = String(parts[parts.length - 1] || t || '').trim();
+  }
   let SPEAK_SEQ = 0;                 // 每一次「它开口」都有一个号，新号一出旧的那次立刻作废
   function stopSpeaking() {
     SPEAK_SEQ++;
+    enterEchoHold();
     try { AUD.pause(); AUD.removeAttribute('src'); AUD.load(); } catch (_) {}
     try { TTS && TTS.cancel(); } catch (_) {}
   }
@@ -1446,7 +1455,7 @@
       };
       if (seq && seq !== SPEAK_SEQ) { fin(); return; }
       try {
-        AUD.onended = fin;
+        AUD.onended = () => { enterEchoHold(); fin(); };
         AUD.onerror = fin;
         AUD.onplaying = () => { if (TURN.sil && !M2E_TOLD) { M2E_TOLD = true; dbg('m2e', { kind: 'speech', ms: Date.now() - TURN.sil }); } };
         AUD.ontimeupdate =() => { if (AUD.currentTime > 0.05) clearTimeout(alive); };
@@ -1501,7 +1510,7 @@
     try { const v = pickVoice(); if (v) u.voice = v; } catch (_) {}
     u.lang = 'en-US';
     u.rate = rate || (LEVEL === 'A2' ? 0.84 : LEVEL === 'B2' ? 1.0 : 0.93);
-    u.onend = () => onEnd && onEnd();
+    u.onend = () => { enterEchoHold(); onEnd && onEnd(); };
     u.onerror = () => onEnd && onEnd();
     try { TTS.speak(u); } catch (_) { onEnd && onEnd(); }
   }
@@ -1539,6 +1548,7 @@
     setState('speak');
     const txt = spokenPart(t);
     if (!txt) { setTimeout(startListen, 200); return; }
+    rememberSpoken(txt);
     const rate = LEVEL === 'A2' ? 0.95 : LEVEL === 'B2' ? 1.08 : 1.03;
     const done = () => {
       dbg('speak_done', { seq, cur: SPEAK_SEQ });
@@ -2128,6 +2138,12 @@
       if (INTERRUPT_MS >= 300) { INTERRUPT_MS = 0; dbg('bargein', { ms: 300, lvl: Math.round(lvl * 1000) / 1000 }); stopSpeaking(); }
     } else {
       const loud = lvl > Math.max(0.02, NOISE * 2.0);
+      if (!REC && Date.now() < ECHO_HOLD_UNTIL) {
+        HEARD_MS = 0;
+        if (loud) dbg('echo_hold');
+        MIC_LOOP = setTimeout(micStep, 110);
+        return;
+      }
       if (REC) {
         if (loud) SIL_MS = 0; else SIL_MS += 110;
         if (SIL_MS > 900 || Date.now() - REC_T0 > 15000) stopSeg();
@@ -2175,6 +2191,29 @@
       f.readAsDataURL(blob);
     });
   }
+  function echoNorm(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  function echoSimilarity(a, b) {
+    // Token overlap coefficient: unique shared tokens / the smaller unique-token set.
+    const aa = new Set(echoNorm(a).split(' ').filter(Boolean));
+    const bb = new Set(echoNorm(b).split(' ').filter(Boolean));
+    if (!aa.size || !bb.size) return 0;
+    let shared = 0; aa.forEach(x => { if (bb.has(x)) shared++; });
+    return shared / Math.min(aa.size, bb.size);
+  }
+  function echoMatch(txt) {
+    const said = echoNorm(txt);
+    const lastCoach = CHAT.filter(x => x.role === 'assistant').slice(-1)[0];
+    const sources = [String(lastCoach && lastCoach.text || ''), LAST_SPOKEN_SENTENCE].filter(Boolean);
+    let sim = 0, contained = false;
+    sources.forEach(source => {
+      const coach = echoNorm(source);
+      sim = Math.max(sim, echoSimilarity(said, coach));
+      if (said && coach.includes(said)) contained = true;
+    });
+    return { drop: sim > 0.6 || contained, sim };
+  }
   async function onSeg() {
     const blob = new Blob(REC_CHUNKS, { type: (REC && REC.mimeType) || 'audio/mp4' });
     REC_CHUNKS = [];
@@ -2192,6 +2231,8 @@
       dbg('asr', { prov: r.provider, ms: r.ms, chars: txt.length, bytes: blob.size });
       dbg('asr_rtt', { ms: TURN.sil ? Date.now() - TURN.sil : -1, chars: txt.length });
       if (!txt) { if (VAD_ON) setState('listen'); return; }
+      const echo = echoMatch(txt);
+      if (echo.drop) { dbg('echo_drop', { txt, sim: echo.sim }); if (VAD_ON) setState('listen'); return; }
       if (busy) { PENDING.push(txt); dbg('pending_q', { n: PENDING.length }); if (VAD_ON) setState('listen'); return; }
       ta.value = txt; autoGrow();
       send();
