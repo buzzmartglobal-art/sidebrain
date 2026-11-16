@@ -180,6 +180,7 @@
   .course-card{display:flex;gap:10px;align-items:center;text-align:left;width:100%}.course-card.lock{opacity:.42}.course-card.current{border-color:var(--accent);box-shadow:0 0 0 1px rgba(91,140,255,.25)}
   .course-min{width:46px;flex:0 0 46px;color:#9dbaff;font-weight:700}.course-progress{height:6px;background:#252b35;border-radius:9px;overflow:hidden}.course-progress i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
   .course-material textarea{width:100%;min-height:130px;background:#0f1218;border:1px solid var(--line);border-radius:10px;padding:10px;resize:vertical}.course-q{padding:9px 0;border-top:1px solid var(--line)}
+  .libhero{display:flex;gap:16px;align-items:flex-start}.libcover{width:104px;height:150px;border-radius:9px;object-fit:cover;background:linear-gradient(145deg,#28334a,#151922);box-shadow:0 7px 20px #0008}.libgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.libcard{text-align:left;min-width:0}.libcard .libcover{width:100%;height:auto;aspect-ratio:2/3}.libcard b,.libcard span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.libcard b{font-size:13px;margin-top:6px}.libcard span,.libmeta{font-size:11px;color:var(--dim)}.libbadge{display:inline-block!important;color:#91e6ad!important;font-size:10px!important}.libchips{display:flex;gap:7px;overflow:auto;padding:7px 0 12px}.libchips button.act{background:#345da8;color:#fff}.libcontinue{display:flex;gap:10px;overflow:auto;padding-bottom:14px}.libcontinue button{min-width:148px;text-align:left;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:10px}.libreader{font:18px/1.75 Georgia,serif;white-space:pre-wrap}.libsent{border-radius:5px;padding:1px 2px}.libsent.on{background:#745b18;color:#fff}.libtoolbar{position:sticky;bottom:0;display:flex;gap:7px;align-items:center;background:#11151def;padding:9px 0}.libtoolbar button{background:#272e3b;border-radius:9px;padding:8px 10px}.libseek{width:100%}.libdetail h2{margin:0 0 5px}.libactions{display:flex;gap:8px;margin:14px 0}.libactions button{flex:1;padding:11px;border-radius:11px;background:#263248}.libactions button.primary{background:var(--accent)}
 
   /* 登录 */
   #gate{position:fixed;inset:0;z-index:60;background:radial-gradient(120% 80% at 50% 0%,#1a2030 0%,var(--bg) 58%);
@@ -220,6 +221,7 @@
     </div>
     <span class="pill" id="modepill"></span>
     <button class="hbtn" id="btnNotes" title="笔记">🗒</button>
+    <button class="hbtn" id="libLaunch" title="Library">📚</button>
     <button class="hbtn" id="btnMenu" title="设置">⋯</button>
   </header>
 
@@ -301,6 +303,8 @@
 </div>
 
 <!-- 朗读条 -->
+<div class="sheet" id="librarySheet"><header><button class="hbtn" id="libraryBack">←</button><div class="brand"><b>Library</b><span id="librarySub"></span></div><button class="hbtn" id="libraryHome">⌂</button></header><div class="body" id="libraryBody"></div></div>
+
 <div id="reader"><div class="rdt" id="rdTitle">…</div><div class="rdb"><i id="rdBar"></i></div><div class="rdc"><span id="rdPct">0%</span><button id="rdPlay" class="rdb2">⏸</button><button id="rdSlow" class="rdb2">1×</button><button id="rdX" class="rdb2">✕</button></div></div>
 
 <!-- 登录 -->
@@ -320,6 +324,7 @@
 <div class="toast" id="toast"></div>
 <div id="fileWrap" style="display:none"><input type="file" id="file" accept="image/*,text/*,.md,.json,.csv,.txt,.log"></div>
 
+<script src="/library-ui.js"></script>
 <script>
 (() => {
   'use strict';
@@ -982,7 +987,7 @@
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261111-EN3';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
+  const BUILD = '20261115-LIBRARY';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
