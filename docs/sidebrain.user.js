@@ -2,7 +2,7 @@
 // @name         Safari AI Sidebar（自用）
 // @description  网页右侧 Sidebrain：连接 Sidebrain 服务自动选模型，也保留自带 key / Ollama 高级通道
 // @namespace    cola.local
-// @version      1.5.2
+// @version      1.5.3
 // @edition      free
 // @match        *://*/*
 // @grant        GM.xmlHttpRequest
@@ -119,8 +119,8 @@
 
   const EDITION = 'free';
   const IS_PRO = EDITION === 'pro';
-  // 试用到期 / 未激活时，Pro 能力在客户端也一起关掉（服务端同样会拦）
-  let PRO_ON = IS_PRO;
+  // 2026-11-20 订阅功能取消：PRO_ON 恒为 true，所有功能永久开放
+  let PRO_ON = true;   // 2026-11-20 George：订阅功能取消，全部功能永久开放
   let TRIAL = null;
   let CFG = { ...DEFAULTS };
   let MODEL_CHOICE = 'auto-b';
@@ -448,14 +448,14 @@
     return null;
   }
 
-  // 设置页里的账号区：只有「连接 / 已连接 · 还剩几天 / 试用结束」
+  // 设置页里的账号区：只有「连接 / 免费使用 · 断开」
   let ACCT = null;
   function paintAcct() {
     const st = $('acct-state'); if (!st) return;
     const mail = $('acct-mail-row'), go = $('acct-go'), sub = $('acct-sub-row'), out = $('acct-out');
     if (ACCT && ACCT.plan === 'invalid') {
       safeHTML(st,  LANG === 'zh'
-        ? '这台设备的登录失效了。<br><span style="opacity:.65">填回原来的邮箱就能接上，试用天数不变。</span>'
+        ? '这台设备的登录失效了。<br><span style="opacity:.65">填回原来的邮箱就能接上，全部功能免费开放。</span>'
         : 'Sign-in on this device expired.<br><span style="opacity:.65">Re-enter the same email to reconnect — trial days are kept.</span>');
       if (mail) mail.style.display = 'flex';
       if (go) { go.style.display = 'block'; go.textContent = LANG === 'zh' ? '用邮箱重新连接' : 'Reconnect with email'; }
@@ -465,20 +465,16 @@
     }
     if (ACCT && ACCT.plan !== 'none') {
       const zh = LANG === 'zh';
-      const text = ACCT.plan === 'active'
-        ? (zh ? `已订阅 ✓ · ${ACCT.email}` : `Subscribed ✓ · ${ACCT.email}`)
-        : ACCT.plan === 'trial'
-          ? (zh ? `免费试用中 · 还剩 ${ACCT.daysLeft} 天 · ${ACCT.email}` : `Free trial · ${ACCT.daysLeft} days left · ${ACCT.email}`)
-          : (zh ? `试用已结束 · ${ACCT.email}` : `Trial ended · ${ACCT.email}`);
+      const text = (zh ? `免费使用 ✓ · ${ACCT.email}` : `Free ✓ · ${ACCT.email}`);
       safeHTML(st,  text + (zh ? `<br><span style="opacity:.65">今天用了 ${ACCT.usedToday || 0} 次</span>` : `<br><span style="opacity:.65">${ACCT.usedToday || 0} today</span>`));
       if (mail) mail.style.display = 'none';
       if (go) go.style.display = 'none';
-      if (sub) sub.style.display = ACCT.plan === 'active' ? 'none' : 'flex';
+      if (sub) sub.style.display = 'none';
       if (out) out.style.display = 'block';
     } else {
-      st.textContent = LANG === 'zh' ? '填个邮箱就能开始，7 天免费，不用信用卡、不用挑模型。' : 'Enter your email to start. 7 days free, no card, no model picking.';
+      st.textContent = LANG === 'zh' ? '填邮箱连接服务器即可，全部功能免费开放，不用挑模型。' : 'Enter your email to connect. Everything is free and open — no model picking.';
       if (mail) mail.style.display = 'flex';
-      if (go) { go.style.display = 'block'; go.textContent = LANG === 'zh' ? '开始 7 天免费试用' : 'Start the 7-day free trial'; }
+      if (go) { go.style.display = 'block'; go.textContent = LANG === 'zh' ? '连接服务器' : 'Connect'; }
       if (sub) sub.style.display = 'none';
       if (out) out.style.display = 'none';
     }
@@ -507,7 +503,7 @@
     if (hostedOn() && ACCT) {
       sel.style.display = 'none';
       hm.style.display = 'inline-block';
-      hm.textContent = ACCT.plan === 'active' ? '自动 · 已订阅' : ACCT.plan === 'trial' ? `自动 · 试用 ${ACCT.daysLeft} 天` : '自动 · 已过期';
+      hm.textContent = LANG === 'zh' ? '自动 · 免费' : 'Auto · Free';
     } else {
       sel.style.display = '';
       hm.style.display = 'none';
@@ -1077,8 +1073,7 @@
       <div id="acct">
         <div class="hint" id="acct-state">还没连上服务器。</div>
         <div class="row" id="acct-mail-row"><label>邮箱（用来登录、找回和续费）</label><input id="acct-mail" type="email" placeholder="you@example.com"></div>
-        <button class="send" id="acct-go">开始 7 天免费试用</button>
-        <div class="row" id="acct-sub-row" style="display:none"><button class="send" id="acct-sub" style="background:#2f6fed">订阅 $8/月</button></div>
+        <button class="send" id="acct-go">连接服务器</button>
         <button class="send" id="acct-out" style="display:none;background:#3a4048">断开这台设备</button>
       </div>
       <details id="adv" style="margin-top:10px">
@@ -1135,14 +1130,6 @@
         <div class="hint" id="fstats" style="opacity:.8;margin-top:6px;line-height:1.8;font-family:ui-monospace,Menlo,monospace"></div>
         <div class="hint" style="opacity:.6;margin-top:4px">得分 = (👍+2)/(👍+👎+4)。同一成本档内，得分高的排前面；差距小于 0.12 不动，避免一票就抖。</div>
       </details>
-      <div class="row" id="lic-row" style="margin-top:10px">
-        <label>许可证（购买后邮件里那串）</label>
-        <div style="display:flex;gap:6px">
-          <input id="lic-input" type="text" placeholder="XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX" style="flex:1">
-          <button class="send" id="lic-btn" style="padding:5px 10px;font-size:12px;background:#3a4048">激活</button>
-        </div>
-        <div class="hint" id="lic-hint" style="margin-top:6px">试用状态：读取中…</div>
-      </div>
       <details style="margin-top:4px">
         <summary style="cursor:pointer;font-size:12px;color:#8b95a7">关于 / 免责说明（v<span id="aver">—</span>）</summary>
         <div class="hint" style="opacity:.75;margin-top:6px;line-height:1.6">
@@ -1200,7 +1187,7 @@
   // 多语言词典：以中文原文为键；没翻到的自动回落到英文，再回落到中文
   const LK = ['设置', '发送', '关闭', '清空本页对话', '复制', '朗读', '有用', '没用', '更多',
     '联网搜索', '自动记住看过的网页', '记忆', '问点什么…（Enter 发送 / Shift+Enter 换行）',
-    '开始 7 天免费试用', '用邮箱重新连接', '断开这台设备', '订阅 $8/月', '语音输入', '停止录音', '听不见声音'];
+    '连接服务器', '用邮箱重新连接', '断开这台设备', '语音输入', '停止录音', '听不见声音'];
   const LT = {
     ja: ['設定', '送信', '閉じる', 'このタブの会話を消す', 'コピー', '読み上げ', '役に立った', '役に立たない', 'その他',
       'ウェブ検索', '見たページを記憶', 'メモリー', '何でも聞いてください…（Enter で送信 / Shift+Enter で改行）',
@@ -1283,7 +1270,6 @@
     '反馈统计（👍/👎 怎么改了我的路由）': 'Feedback stats (how 👍/👎 changed my routing)',
     '得分 = (👍+2)/(👍+👎+4)。同一成本档内，得分高的排前面；差距小于 0.12 不动，避免一票就抖。': 'Score = (👍+2)/(👍+👎+4). Within a cost tier, higher scores go first; gaps under 0.12 are ignored so one vote does not flip it.',
     '许可证（购买后邮件里那串）': 'License key (the one in your email)',
-    '激活': 'Activate', '试用状态：读取中…': 'Trial status: reading…',
     '关于 / 免责说明（v': 'About / terms (v',
     '本工具只是一个浏览器侧栏壳：': 'This is a sidebar shell: ',
     '不保存账号凭证': 'no credentials are stored',
@@ -1842,7 +1828,7 @@
   // ---------- 浏览即记：页面停留 4 秒后自动入库 ----------
   let capturedThisPage = false;
   function autoCapture() {
-    if (!PRO_ON) return;   // 免费版 / 试用结束：没有本地记忆
+    if (!PRO_ON) return;
     if (!MEMORY_ON || capturedThisPage) return;
     if (!/^https?:/i.test(location.href)) return;
     const txt = readPage();
@@ -1960,54 +1946,19 @@
   function paintLic(st) {
     const hint = $('lic-hint');
     if (!hint) return;
-    if (!IS_PRO) { $('lic-row').style.display = 'none'; return; }
-    const st2 = st || TRIAL;
-    if (!st2) { hint.textContent = '试用状态读不到（本地服务没起来？）'; return; }
-    if (st2.state === 'licensed') {
-      safeHTML(hint,  `已激活 ✓ ${memEsc(st2.key || '')}` + (st2.licensedAt ? ` · ${memDate(st2.licensedAt)}` : ''));
-      hint.style.color = '#7fb08a';
-    } else if (st2.state === 'trial') {
-      safeHTML(hint,  `试用中 · 还剩 <b>${st2.daysLeft}</b> 天（共 ${st2.trialDays} 天）· 到期后记忆和自动路由会暂停`);
-      hint.style.color = '#93a0b5';
-    } else {
-      safeHTML(hint,  '试用已结束 · 自动路由和记忆已暂停，手选模型照常能用');
-      hint.style.color = '#c98b8b';
-    }
+    if (!IS_PRO) { return; }   // 2026-11-20: 许可证行已随订阅功能一起移除
+    safeHTML(hint,  '全部功能免费开放（记忆 · 自动路由 · 多通道）');
+    hint.style.color = '#7fb08a';
   }
 
   async function refreshTrial() {
     if (!IS_PRO) return;
-    try {
-      const r = await gm({ method: 'GET', url: `${CFG.gatewayUrl}/license`, timeout: 6000 });
-      const j = JSON.parse(r.responseText);
-      TRIAL = j;
-      PRO_ON = j.state !== 'expired';
-      paintLic(j);
-    } catch (e) {
-      paintLic(null);
-    }
+    TRIAL = { state: 'free' };
+    PRO_ON = true;
+    paintLic(TRIAL);
   }
 
-  $('lic-btn').onclick = async () => {
-    const key = ($('lic-input').value || '').trim();
-    if (!key) { bubble('a', '先把许可证粘进去。'); return; }
-    $('lic-btn').textContent = '验证中…';
-    try {
-      const r = await gm({
-        method: 'POST', url: `${CFG.gatewayUrl}/license`,
-        headers: { 'Content-Type': 'application/json' }, data: JSON.stringify({ key }), timeout: 20000,
-      });
-      const j = JSON.parse(r.responseText);
-      if (!j.ok) throw new Error(j.error || '激活失败');
-      TRIAL = j.trial; PRO_ON = true;
-      paintLic(j.trial);
-      bubble('a', '激活成功，谢谢。' + (j.email ? '（' + j.email + '）' : ''));
-      $('lic-btn').textContent = '已激活';
-    } catch (e) {
-      $('lic-btn').textContent = '激活';
-      bubble('a', '激活失败：' + e.message);
-    }
-  };
+  if (IS_PRO) paintLic({ state: 'free' });
   // 免费版：隐藏所有依赖本地网关、以及多 key 的入口
   if (!IS_PRO) {
     ['memlist', 'memobtn', 'searchbtn'].forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
@@ -2768,18 +2719,11 @@
       await refreshAcct();
       $('settings').classList.remove('on');
       bubble('a', LANG === 'zh'
-        ? `好了，7 天免费试用已经开通（到 ${String(r.trialEndsAt).slice(0, 10)}）。\n\n直接问就行 —— 用哪个模型不用你管，服务器会挑当下最省、够用的那条。`
-        : `You're in — 7-day trial active until ${String(r.trialEndsAt).slice(0, 10)}.\n\nJust ask. You don't pick a model; the server picks the cheapest one that's good enough.`);
+        ? '连接好了，全部功能免费开放。\n\n直接问就行 —— 用哪个模型不用你管，服务器会挑当下最省、够用的那条。'
+        : "Connected — everything is free and open.\n\nJust ask. You don't pick a model; the server picks the cheapest one that's good enough.");
     } catch (e) {
       $('acct-state').textContent = (LANG === 'zh' ? '没开通成功：' : 'Failed: ') + (e.message || e);
     } finally { acctGo.disabled = false; }
-  });
-
-  const acctSub = $('acct-sub');
-  if (acctSub) acctSub.addEventListener('click', () => {
-    bubble('a', LANG === 'zh'
-      ? '订阅页还在搭（Stripe 还没接）。这段时间试用可以续，直接回我一句「续试用」就行。'
-      : "The subscribe page isn't up yet (Stripe pending). For now trials can be extended — just ask.");
   });
 
   const acctOut = $('acct-out');
@@ -2992,11 +2936,7 @@
         } catch (e) {
           b.className = 'm err';
           if (e.status === 402) {
-            safeHTML(b,  md('免费试用结束了。\n\n继续用需要订阅（$8/月，也可以先申请延长试用）：\n[点这里订阅](https://buzzmartglobal-art.github.io/sidebrain/join)'));
-            const t = document.createElement('div');
-            t.className = 'tag';
-            t.textContent = '试用已结束';
-            b.appendChild(t);
+            safeHTML(b,  md('服务器这会儿没响应，稍后再试一次；或者到设置里填自己的 key 直接用。'));
           } else if (e.status === 429) {
             safeHTML(b,  md('今天的免费额度用完了，明天零点恢复。\n\n急用的话可以等一会儿再试，或者自己填一个 key（设置 → 高级）。'));
           } else if (e.status === 401) {
