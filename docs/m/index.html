@@ -208,17 +208,7 @@
   .libhero h2{font-size:19px;line-height:1.3;margin:0 0 6px}
   .libhero{display:flex;gap:16px;align-items:flex-start}.libcover{width:104px;height:150px;border-radius:9px;object-fit:cover;background:linear-gradient(145deg,#28334a,#151922);box-shadow:0 7px 20px #0008}.libgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.libcard{text-align:left;min-width:0}.libcard .libcover{width:100%;height:auto;aspect-ratio:2/3}.libcard b,.libcard span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.libcard b{font-size:13px;margin-top:6px}.libcard span,.libmeta{font-size:11px;color:var(--dim)}.libbadge{display:inline-block!important;color:#91e6ad!important;font-size:10px!important}.libchips{display:flex;gap:7px;overflow:auto;padding:7px 0 12px}.libchips button.act{background:#345da8;color:#fff}.libcontinue{display:flex;gap:10px;overflow:auto;padding-bottom:14px}.libcontinue button{min-width:148px;text-align:left;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:10px}.libreader{font:18px/1.8 Georgia,serif;white-space:pre-wrap;padding:4px 6px 10px}.libsent{border-radius:6px;padding:1px 3px}.libsent.on{background:#26417e;color:#fff}.libtoolbar{position:sticky;bottom:0;display:flex;gap:10px;align-items:center;background:#11151def;padding:12px 0 calc(10px + env(safe-area-inset-bottom,0px))}.libtoolbar button{background:#272e3b;border-radius:10px;padding:10px 13px;font-size:15px}.libseek{width:100%;margin-bottom:6px}.libdetail h2{margin:0 0 5px}.libactions{display:flex;gap:8px;margin:14px 0}.libactions button{flex:1;padding:11px;border-radius:11px;background:#263248}.libactions button.primary{background:var(--accent)}
 
-  /* 登录 */
-  #gate{position:fixed;inset:0;z-index:60;background:radial-gradient(120% 80% at 50% 0%,#1a2030 0%,var(--bg) 58%);
-    display:flex;flex-direction:column;justify-content:center;padding:calc(var(--st) + 20px) 26px calc(var(--sb) + 26px)}
-  #gate.hide{display:none}
-  #gate .logo{width:64px;height:64px;border-radius:19px;background:linear-gradient(135deg,var(--accent),var(--accent2));
-    display:grid;place-items:center;font-size:30px;margin-bottom:22px;box-shadow:0 14px 40px rgba(91,140,255,.32)}
-  #gate h1{font-size:27px;margin:0 0 8px;line-height:1.2;letter-spacing:-.3px}
-  #gate p{color:var(--dim);margin:0 0 26px;font-size:14px;line-height:1.6}
-  #gate input{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:13px;padding:15px 15px;font-size:16px;
-    color:var(--fg);margin-bottom:12px}
-  #gate .tip{font-size:11.5px;color:#5f6875;margin-top:16px;text-align:center;line-height:1.6}
+  /* 2026-11-21：登录层 CSS 随界面一起删除 */
   .spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;
     animation:sp .8s linear infinite;display:inline-block;vertical-align:-3px;margin-right:7px}
   @keyframes sp{to{transform:rotate(360deg)}}
@@ -334,18 +324,7 @@
 <div id="reader"><div class="rdt" id="rdTitle">…</div><div class="rdb"><i id="rdBar"></i></div><div class="rdc"><span id="rdPct">0%</span><button id="rdPlay" class="rdb2">⏸</button><button id="rdSlow" class="rdb2">1×</button><button id="rdX" class="rdb2">✕</button></div></div>
 
 <!-- 登录 -->
-<div id="gate" class="hide">
-  <div class="logo">✦</div>
-  <h1 id="gTitle">把脑子装进手机</h1>
-  <p id="gSub">输一个邮箱就开始用。现在完全免费，不用挑模型。</p>
-  <input id="gMail" type="email" inputmode="email" autocomplete="email" placeholder="你的邮箱">
-  <button class="btn primary" id="gGo">开始</button>
-  <div class="tip" id="gTip">同一个邮箱在电脑和手机上都是一个账号</div>
-  <div style="text-align:center;margin-top:10px;line-height:2">
-    <a id="gHow" href="https://buzzmartglobal-art.github.io/sidebrain/install.html" style="color:#8fb0ff;font-size:13px;text-decoration:none">怎么装到主屏？</a><br>
-    <a id="gSprite" href="https://buzzmartglobal-art.github.io/sidebrain/install.html#iphone" style="color:#8b93a1;font-size:12.5px;text-decoration:none"></a>
-  </div>
-</div>
+<!-- 2026-11-21 George：登录界面彻底删除，不再有登录层 -->
 
 <div class="toast" id="toast"></div>
 <div id="fileWrap" style="display:none"><input type="file" id="file" accept="image/*,text/*,.md,.json,.csv,.txt,.log"></div>
@@ -360,8 +339,6 @@
     zh: { hi:'要问点什么？', hp:'截图、文件、语音都能直接发进来，回答会自动存进你的笔记库。',
       ph:'发消息…', hint:'回答来自自动选中的模型，你不用挑', notes:'笔记', settings:'设置',
       send:'发送', thinking:'在想…', copy:'复制', copied:'已复制', retry:'重试', del:'删除',
-      gateTitle:'把脑子装进手机', gateSub:'输一个邮箱就开始用。现在完全免费，不用挑模型。',
-      gateBtn:'开始', gateMail:'你的邮箱', gateTip:'同一个邮箱在电脑和手机上都是一个账号', howto:'怎么装到主屏？', sprite:'想在每个网页上都有小精灵？',
       q1:'帮我总结这个页面', q2:'把这段代码解释一下', q3:'今天有什么值得关注的',
       empty:'这里还是空的', memo:'今日备忘录', newNote:'新建笔记', save:'保存', cancel:'取消',
       title:'标题', body:'正文', search:'搜索笔记', readFail:'读不出来', netFail:'网络不通，稍后再试', reconnecting:'正在重连服务器…',
@@ -375,8 +352,6 @@
       ph:'Message…', hint:'A model is picked for you — no choosing', notes:'Notes', settings:'Settings',
       spriteLive:'Make it live on every page', spriteLiveTip:'Install once with the free Userscripts extension — then the sprite is on every page you open', spriteApp:'Download the sprite shortcut', spriteAppTip:'Tap the downloaded file → Add Shortcut; after that you can call the sprite on any shared page', spriteCode:'Copy the sprite bookmark', spriteCodeTip:'Paste it into the address bar and save it as a bookmark', spriteCopied:'Link copied — save it as a bookmark in Safari', spriteNew:'new', spriteBusy:'Signing your shortcut…', spriteJsCopied:'Script copied — paste it into a “Run JavaScript on Web Page” action', spriteDl:'Copy the script instead', spriteDlTip:'Make a shortcut yourself with “Run JavaScript on Web Page” and paste this in',
       send:'Send', thinking:'Thinking…', copy:'Copy', copied:'Copied', retry:'Retry', del:'Delete',
-      gateTitle:'Your brain, on your phone', gateSub:'Enter an email to start. Free for now — no model picking.',
-      gateBtn:'Start', gateMail:'Your email', gateTip:'The same email is the same account on desktop and phone', howto:'Add to Home Screen?', sprite:'Want the sprite on every page?',
       q1:'Summarize this page', q2:'Explain this code', q3:"What's worth knowing today",
       empty:'Nothing here yet', memo:"Today's memo", newNote:'New note', save:'Save', cancel:'Cancel',
       title:'Title', body:'Body', search:'Search notes', readFail:"Couldn't read that", netFail:'Network hiccup, try again', reconnecting:'Reconnecting to the server…',
@@ -985,35 +960,18 @@
       const left = ACCT.daysLeft != null ? Math.max(0, Math.ceil(ACCT.daysLeft)) : null;
       $('#sub').textContent = (ACCT.plan === 'active' || ACCT.plan === 'free') ? '✓ ' + (ACCT.plan === 'free' ? T.acctFree : T.acctActive) + ' · ' + (ACCT.email || '') :
         (T.acctTrial + ' · ' + (left != null ? left + ' ' + T.days : '') );
-      $('#gate').classList.add('hide');
       return true;
     } catch (e) {
-      if (e.status === 401 || e.status === 404) { store.k = ''; $('#gate').classList.remove('hide'); }
+      if (e.status === 401 || e.status === 404) { toast(EN ? 'Server said no — reopen this page with your ?k= link' : '服务器没认这台设备 —— 用带 ?k= 的链接重开这个页面'); }
       $('#sub').textContent = e.status ? '需要登录' : T.netFail;
       if (!e.status) console.warn('[sidebrain] 连不上', base);
       return false;
     }
   }
-  $('#gGo').onclick = async () => {
-    const mail = $('#gMail').value.trim();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { toast(T.gateMail + '?'); return; }
-    const b = $('#gGo');
-    b.disabled = true; b.innerHTML = '<span class="spin"></span>' + T.gateBtn;
-    try {
-      const r = await api('/account/signup', { email: mail });
-      store.k = r.token;
-      await refreshAcct();
-      paintQuick();
-      toast('✦ 好，开始用');
-    } catch (e) {
-      toast(T.netFail);
-    } finally { b.disabled = false; b.textContent = T.gateBtn; }
-  };
-  $('#gMail').addEventListener('keydown', e => { if (e.key === 'Enter') $('#gGo').click(); });
 
   /* ---------- 快捷问题 ---------- */
   /* ---------- 版本自检：手机上最烦的就是「你说的功能我没有」 ---------- */
-  const BUILD = '20261115-LIB3';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
+  const BUILD = '20261121-NOLOGIN';   // 每次上线都要改：遥测靠它分辨你手上是不是新版;
   function showUpdateBar() {
     if (document.getElementById('upbar')) return;
     const d = document.createElement('div');
@@ -2906,11 +2864,9 @@
       CHAT = []; saveChat(); paintChat(); closeSheet(menuSheet); toast('✓');
     };
     $('#mLogout').onclick = async () => {
-      store.k = '';
       CHAT = []; saveChat(); paintChat();
       closeSheet(menuSheet);
-      $('#gMail').value = (ACCT && ACCT.email) || '';
-      $('#gate').classList.remove('hide');
+      toast(EN ? 'Conversation cleared' : '对话已清空');
     };
   }
 
@@ -2949,10 +2905,6 @@
   document.documentElement.lang = EN ? 'en' : 'zh';
   $('#h1').textContent = T.hi; $('#hp').textContent = T.hp;
   ta.placeholder = T.ph; $('#hint').textContent = T.hint;
-  $('#gTitle').textContent = T.gateTitle; $('#gSub').textContent = T.gateSub;
-  $('#gGo').textContent = T.gateBtn; $('#gMail').placeholder = T.gateMail; $('#gTip').textContent = T.gateTip;
-  $('#gHow').textContent = T.howto;
-  $('#gSprite').textContent = T.sprite;
   paintQuick();
   // 带连接码的链接（?k=sb_…）：自己用的直通入口，点开就是已登录状态，不用输邮箱
   (function takeTokenFromUrl() {
@@ -3000,7 +2952,7 @@
   paintMode();
   paintChat();
   setTimeout(() => { if (store.k) prewarmVoice(); }, 1500);   // 先热那六句语气词，冷启动也跑
-  if (store.k) refreshAcct(); else $('#gate').classList.remove('hide');
+  if (store.k) refreshAcct();   // 2026-11-21：没有登录层了，没 token 也直接进界面
   checkFresh();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkFresh(); });
   setInterval(() => { if (store.k && !ACCT) refreshAcct(); }, 60000);
