@@ -2,7 +2,7 @@
 // @name         Safari AI Sidebar（自用）
 // @description  网页右侧 Sidebrain：连接 Sidebrain 服务自动选模型，也保留自带 key / Ollama 高级通道
 // @namespace    cola.local
-// @version      1.5.3
+// @version      1.5.4
 // @edition      free
 // @match        *://*/*
 // @grant        GM.xmlHttpRequest
@@ -1072,7 +1072,7 @@
       </div>
       <div id="acct">
         <div class="hint" id="acct-state">还没连上服务器。</div>
-        <div class="row" id="acct-mail-row"><label>邮箱（用来登录、找回和续费）</label><input id="acct-mail" type="email" placeholder="you@example.com"></div>
+        <div class="row" id="acct-mail-row"><label>邮箱，或已连设备上的连接码（sb_ 开头）</label><input id="acct-mail" type="text" autocapitalize="off" spellcheck="false" placeholder="you@example.com / sb_xxxxxxxx"></div>
         <button class="send" id="acct-go">连接服务器</button>
         <button class="send" id="acct-out" style="display:none;background:#3a4048">断开这台设备</button>
       </div>
@@ -2706,11 +2706,26 @@
   const acctGo = $('acct-go');
   if (acctGo) acctGo.addEventListener('click', async () => {
     const mail = ($('acct-mail').value || '').trim();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { $('acct-state').textContent = LANG === 'zh' ? '邮箱看起来不对，再检查一下。' : 'That email looks off — check it again.'; return; }
+    const isCode = /^sb_[A-Za-z0-9_]{8,}$/.test(mail);
+    if (!isCode && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { $('acct-state').textContent = LANG === 'zh' ? '填邮箱，或粘贴 sb_ 开头的连接码。' : 'Enter an email, or paste a code starting with sb_.'; return; }
     acctGo.disabled = true;
-    $('acct-state').textContent = LANG === 'zh' ? '正在开通…' : 'Setting up…';
+    $('acct-state').textContent = isCode ? (LANG === 'zh' ? '正在连接…' : 'Connecting…') : (LANG === 'zh' ? '正在开通…' : 'Setting up…');
     try {
+      // 已有连接码：直接拿它验一次，注册闸门关着也能接上新设备
+      if (isCode) {
+        CFG.sbToken = mail; CFG.hosted = true;
+        let acc;
+        try { acc = await serverCall('/account'); } catch (e) { CFG.sbToken = ''; throw new Error(LANG === 'zh' ? '这串连接码无效或已失效' : 'that code is not valid'); }
+        await GM.setValue('sbToken', mail);
+        await GM.setValue('hosted', true);
+        ACCT = acc;
+        await refreshAcct();
+        $('settings').classList.remove('on');
+        bubble('a', LANG === 'zh' ? '连上了，全部功能都开着。' : 'Connected — everything is on.');
+        return;
+      }
       const r = await serverCall('/account/signup', { method: 'POST', body: { email: mail } });
+      if (!r || !r.token) throw new Error(LANG === 'zh' ? '服务器目前关闭了新设备注册，改用上面那条连接码' : 'this server is not taking new devices — use a connection code instead');
       CFG.sbToken = r.token; CFG.hosted = true;
       await GM.setValue('sbToken', r.token);
       await GM.setValue('hosted', true);
